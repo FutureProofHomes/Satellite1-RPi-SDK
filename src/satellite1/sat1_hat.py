@@ -11,7 +11,6 @@ except Exception:  # ImportError on macOS, etc.
 
 import logging
 
-from satellite1.cmd_registry import command, arg
 from .components.pcm5122 import PCM5122, PCM5122Config, PCM5122GPIOPin
 from .components.xmos_device_cntrl import (
     DeviceCntrlConfig, 

@@ -1,4 +1,4 @@
-# Dockerfile.arm64.bookworm.py310
+# Dockerfile.arm64.bookworm.py311
 FROM python:3.11-slim-bookworm
 
 # Tools & cross deps

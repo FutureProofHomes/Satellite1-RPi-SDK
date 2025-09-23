@@ -1,3 +1,9 @@
+satellite1-rpi (0.1.1-2) bookworm; urgency=medium
+
+  * Sync with pyproject
+
+ -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Tue, 23 Sep 2025 09:55:09 +0000
+
 satellite1-rpi (0.1.0-1) bookworm; urgency=medium
 
   * Initial release: overlay, ALSA config and init service.
