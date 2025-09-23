@@ -1,0 +1,30 @@
+# Dockerfile.arm64.bookworm.py310
+FROM python:3.11-slim-bookworm
+
+# Tools & cross deps
+RUN dpkg --add-architecture arm64 && apt-get update && \
+    apt-get install -y --no-install-recommends \
+      # build + VCS basics
+      build-essential cmake ninja-build pkg-config git ca-certificates \
+      # cross toolchain + libs for aarch64 (if you also build arm64 binaries)
+      crossbuild-essential-arm64 \
+      binutils-aarch64-linux-gnu \
+      libbcm2835-dev:arm64 \
+      libc6-dev:arm64 libstdc++-12-dev:arm64 libusb-1.0-0-dev:arm64 \
+      # packaging stack
+      devscripts debhelper dh-python dpkg-dev fakeroot \
+      python3-venv python3-pip python3-build \
+      python3-installer python3-setuptools python3-wheel \
+      python3-all \
+      # dtc for building .dtbo from .dts
+      device-tree-compiler \
+      # (optional) lintian for QA
+      lintian file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Toolchain hints for cmake/autotools when cross-compiling
+ENV CC=aarch64-linux-gnu-gcc \
+    CXX=aarch64-linux-gnu-g++ \
+    PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+
+WORKDIR /work

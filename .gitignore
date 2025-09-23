@@ -1,0 +1,24 @@
+# dpkg-buildpackage outputs (if they land in-tree)
+*.buildinfo
+*.changes
+*.deb
+*.dsc
+
+# Common local build dirs
+/.pybuild/
+/build/
+/build-*/
+overlays/build/
+
+# Python cruft
+**/*.pyc
+**/__pycache__/*
+**/*.egg-info/*
+**/*.eggs/*
+**/.ipynb_checkpoints/*
+
+# macOS cruft
+.DS_Store
+
+**/.venv
+

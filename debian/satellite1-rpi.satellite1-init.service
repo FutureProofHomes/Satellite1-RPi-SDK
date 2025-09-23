@@ -1,0 +1,16 @@
+[Unit]
+Description=Initialize Satellite1 I2C devices (DACs)
+Wants=dev-i2c\x2d1.device
+After=dev-i2c\x2d1.device sound.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/satellite1/venv/bin/sat1 dac setup
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

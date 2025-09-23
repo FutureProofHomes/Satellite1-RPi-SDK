@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "satellite1-rpi"
+version = "0.1.1"
+description = "Control library for the Satellite1 Raspberry Pi HAT"
+readme = "README.md"
+authors = [{ name = "Mischa Siekmann", email = "mischa.siekmann@futureproofhomes.net" }]
+license = { file = "LICENSE" }
+
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "smbus2>=0.4",
+    "spidev>=3.6 ; sys_platform == 'linux'",
+    "RPi.GPIO>=0.7 ; sys_platform == 'linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
+]
+
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = ["pytest", "black"]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["satellite1", "satellite1.*"]
+
+[project.scripts]
+sat1 = "satellite1.cli.cli_sat1:main"
+sat1-line-out = "satellite1.cli.cli_line_out_dac:main"
+sat1-xmos = "satellite1.cli.cli_xmos:xmos_main"
+
+
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]

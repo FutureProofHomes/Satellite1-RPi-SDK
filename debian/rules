@@ -1,0 +1,61 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+
+OVERLAY_SRC_DIR := $(CURDIR)/overlays
+DTBO_BUILD_DIR  := $(CURDIR)/debian/.dtbo-build
+
+# Wheelhouse build dirs (throwaway)
+BUILD_VENV   := $(CURDIR)/debian/.build-venv
+WHEELHOUSE   := $(CURDIR)/debian/.wheelhouse
+
+# If you add 'dh-sequence-python3' to Build-Depends, you can drop '--with python3'.
+%:
+	dh $@ --with python3
+
+# Build only the arch:all bits here (your overlays are arch-independent)
+override_dh_auto_build-indep:
+	$(MAKE) -C $(OVERLAY_SRC_DIR) \
+	    BUILD_DIR=$(DTBO_BUILD_DIR) \
+	    DTC=dtc \
+	    all
+
+override_dh_auto_install-indep:
+	: 
+
+
+# (No arch-specific build/install yet)
+override_dh_auto_build-arch:
+	$(MAKE) -C $(OVERLAY_SRC_DIR) \
+	    BUILD_DIR=$(DTBO_BUILD_DIR) \
+	    DTC=dtc \
+	    all
+	# Fresh build venv
+	rm -rf $(BUILD_VENV)
+	python3 -m venv $(BUILD_VENV)
+	$(BUILD_VENV)/bin/pip install --upgrade pip wheel
+
+	# Build a COMPLETE wheelhouse: your pkg + ALL deps (platform-specific wheels)
+	rm -rf $(WHEELHOUSE)
+	mkdir -p $(WHEELHOUSE)
+	$(BUILD_VENV)/bin/pip wheel --wheel-dir $(WHEELHOUSE) .
+
+	# debian/.build-venv/bin/pip wheel --wheel-dir debian/.wheelhouse \
+	#  --find-links debian/.wheelhouse \
+	#  "satellite1-rpi @ file://$(CURDIR)"
+
+override_dh_auto_install-arch:
+	dh_auto_install
+	for pkg in $(shell dh_listpackages); do \
+	  install -d debian/$$pkg/usr/share/satellite1/wheels ; \
+	  cp -a $(WHEELHOUSE)/*.whl debian/$$pkg/usr/share/satellite1/wheels/ ; \
+	done
+
+
+# Keep the tree clean between builds
+override_dh_auto_clean:
+	rm -rf $(DTBO_BUILD_DIR) $(BUILD_VENV) $(WHEELHOUSE)
+	-$(MAKE) -C $(OVERLAY_SRC_DIR) clean
+
+# Don’t start the unit at install time (it will still be enabled)
+override_dh_installsystemd:
+	dh_installsystemd --no-start --name satellite1-init

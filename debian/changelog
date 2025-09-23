@@ -1,0 +1,5 @@
+satellite1-rpi (0.1.0-1) bookworm; urgency=medium
+
+  * Initial release: overlay, ALSA config and init service.
+
+ -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Mon, 15 Sep 2025 12:34:56 +0000
