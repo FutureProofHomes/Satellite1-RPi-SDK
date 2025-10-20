@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
+import time
 
 from ..sat1_hat import XMOS
 
@@ -73,8 +74,18 @@ def _handle(args: argparse.Namespace) -> int:
         print(_fmt_status(st) if st is not None else None)
         return 0 if st is not None else 1
 
+    if args.cmd == "set-mic-output":
+        log.info(f"Set mic channels to {args.left} and {args.right}")
+        xmos.set_mic_left_output( args.left )
+        time.sleep(2)
+        xmos.set_mic_right_output( args.right )
+        return 0
     
-
+    if args.cmd == "run-spi-test":
+        log.info(f"Starting SPI Test")
+        xmos.run_spi_echo_test()
+        return 0
+        
     return 2
 
 
@@ -90,6 +101,11 @@ def attach_to_parser(parser: argparse.ArgumentParser) -> None:
     sp.add_parser("reset", help="Toggle reset pin")
     sp.add_parser("enable-flashing", help="Put XMOS in reset (flashing mode)")
     sp.add_parser("disable-flashing", help="Exit XMOS reset mode")
+    sp.add_parser("run-spi-test", help="Running the SPI echo test")
+    
+    mo = sp.add_parser("set-mic-output", help="Set the output channels of the i2s microphone")
+    mo.add_argument("left", type=int )
+    mo.add_argument("right", type=int )
 
     f = sp.add_parser("flash-firmware", help="Flash factory image")
     f.add_argument("img", type=Path)

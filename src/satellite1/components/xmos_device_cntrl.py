@@ -15,7 +15,7 @@ MAX_SPI_TRANSFER_LEN = 256
 class DeviceCntrlConfig(BaseModel):
     bus: int = 0
     dev: int = 0
-    max_speed_hz: int = 8_000_000
+    max_speed_hz: int = 1_000_000
     mode: int = 3
     bits_per_word: int = 8
     status_reg_len: int = 4
@@ -53,7 +53,13 @@ class DFU_SERVICER():
 class MAIN_SERVICER():
     CMD_NO_OP = DeviceCntrlCMD(0, 0, 0)
 
+class AUDIO_CFG_SERVICER():
+    CMD_MIC_LEFT_SELECT = DeviceCntrlCMD( 30, 10, 1 )
+    CMD_MIC_RIGHT_SELECT = DeviceCntrlCMD( 30, 11, 1 )
 
+class SPI_ECHO_SERVICER():
+    CMD_SET = DeviceCntrlCMD(37, 10, 10 )
+    CMD_GET = DeviceCntrlCMD(37, 11, 10 )    
 
 @dataclass
 class DeviceCntrlStatusRegister:

@@ -3,6 +3,7 @@ from dataclasses import dataclass, field, InitVar, replace
 from typing import Callable, ClassVar
 from pathlib import Path
 import time
+import random
 
 try:
     import RPi.GPIO as GPIO  # type: ignore
@@ -17,7 +18,9 @@ from .components.xmos_device_cntrl import (
     XMOSDeviceCntrl, 
     DeviceCntrlStatusRegister as StatusRegister,
     DFU_SERVICER,
-    MAIN_SERVICER
+    MAIN_SERVICER,
+    AUDIO_CFG_SERVICER,
+    SPI_ECHO_SERVICER
 )
 from pydantic import BaseModel, ConfigDict,Field, computed_field
 
@@ -193,7 +196,7 @@ class XMOS():
         from .components.flashrom_wrapper import Flashrom
         self.set_flash_mode()
         time.sleep(.5)
-        flasher = Flashrom.for_rpi_w25q64jv()
+        flasher = Flashrom.for_rpi_w25q64jv(timeout=600)
         if not flasher.confirm_chip():
             raise SystemExit("Flash chip not found or not accessible")
 
@@ -205,6 +208,23 @@ class XMOS():
 
         self.unset_flash_mode()
         self._status = "DETACHED"
+
+    def run_spi_echo_test(self):
+        for step in range(10):
+            rnd_bytes = random.randbytes(10)
+            self._cntrl.send_cmd( SPI_ECHO_SERVICER.CMD_SET, rnd_bytes)
+            ok, data = self._cntrl.send_cmd(SPI_ECHO_SERVICER.CMD_GET)
+            if not ok or data != rnd_bytes:
+                print( f"step {step} failed:\n  sent: {rnd_bytes}\n  recv: {data}")
+            
+    
+    def set_mic_left_output(self, out_select:int) -> None:
+        if 0 <= out_select <= 7 :
+             ok, data = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_LEFT_SELECT, [out_select] )
+    
+    def set_mic_right_output(self, out_select:int) -> None:
+        if 0 <= out_select <= 7 :
+             ok, data = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_RIGHT_SELECT, [out_select] )
 
     def _prerelease_str(idx: int) -> str:
         return {1: "alpha", 2: "beta", 3: "rc", 4: "dev"}.get(idx, "")
