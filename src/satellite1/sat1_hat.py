@@ -211,13 +211,17 @@ class XMOS():
 
     def run_spi_echo_test(self):
         for step in range(10):
-            rnd_bytes = random.randbytes(10)
-            self._cntrl.send_cmd( SPI_ECHO_SERVICER.CMD_SET, rnd_bytes)
+            rnd_bytes = random.randbytes(128)
+            ok, data = self._cntrl.send_cmd( SPI_ECHO_SERVICER.CMD_SET, rnd_bytes)
+            if not ok:
+                print( "sending failed")
+                continue
             ok, data = self._cntrl.send_cmd(SPI_ECHO_SERVICER.CMD_GET)
             if not ok or data != rnd_bytes:
                 print( f"step {step} failed:\n  sent: {rnd_bytes}\n  recv: {data}")
+                continue
             
-    
+            print( f"step: {step} passed")    
     def set_mic_left_output(self, out_select:int) -> None:
         if 0 <= out_select <= 7 :
              ok, data = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_LEFT_SELECT, [out_select] )

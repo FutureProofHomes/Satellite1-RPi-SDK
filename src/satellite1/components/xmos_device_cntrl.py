@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Sequence, Self
 from dataclasses import dataclass
 import logging
+from time import sleep
 
 try:
     import spidev
@@ -58,8 +59,8 @@ class AUDIO_CFG_SERVICER():
     CMD_MIC_RIGHT_SELECT = DeviceCntrlCMD( 30, 11, 1 )
 
 class SPI_ECHO_SERVICER():
-    CMD_SET = DeviceCntrlCMD(37, 10, 10 )
-    CMD_GET = DeviceCntrlCMD(37, 11, 10 )    
+    CMD_SET = DeviceCntrlCMD(37, 10, 128 )
+    CMD_GET = DeviceCntrlCMD(37, 11 | CntrlProto.CMD_READ_BIT, 128 )    
 
 @dataclass
 class DeviceCntrlStatusRegister:
@@ -170,7 +171,7 @@ class XMOSDeviceCntrl():
             tx[3:3+write_payload_len] = write_payload
 
         # Retry up to 3 times if device is busy
-        for _ in range(3):
+        for _ in range(5):
             rx = self._xfer(tx)
             # Not responding at all?
             if (rx[0] + rx[1] + rx[2]) == 0:
@@ -180,6 +181,8 @@ class XMOSDeviceCntrl():
             # Transmission got accepted  
             if rx[0] != CntrlProto.RET_IGNORED_IN_DEVICE:
                 break
+
+            sleep(.1)
         else:
             # All sending attempts got ignored by the device, give up
             return (False, None)
@@ -194,13 +197,15 @@ class XMOSDeviceCntrl():
         
         if command & CntrlProto.CMD_READ_BIT:
             # If READ command, do second phase to fetch the payload
-            for _ in range(5):
+            for _ in range(10):
                 # send no-op command (0,0,0) for receiving the pending payload        
                 write_read_len = max(3, req_payload_len)
                 rx2 = self._xfer([0x00] * (write_read_len))
                 # same ignored retry pattern?
                 if rx2[0] == CntrlProto.RET_IGNORED_IN_DEVICE:
+                    sleep(.1)
                     continue 
+                     
                 data = bytes(rx2[1:1+read_payload_len]) if read_payload_len > 0 else b""
                 return (True, data)
                   
