@@ -1,3 +1,9 @@
+satellite1-rpi (0.1.3-1) bookworm; urgency=medium
+
+  * Bump version.
+
+ -- root <root@0305b68a2145>  Wed, 12 Nov 2025 15:03:40 +0000
+
 satellite1-rpi (0.1.2-1) bookworm; urgency=medium
 
   * Bump version.
