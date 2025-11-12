@@ -3,7 +3,6 @@ set -e
 
 # ----- Locate firmware config + overlays dir -----
 CFG=/boot/firmware/config.txt
-[ -f /boot/config.txt ] && CFG=/boot/config.txt
 
 BOOT_OVL=/boot/firmware/overlays
 [ -d /boot/overlays ] && BOOT_OVL=/boot/overlays

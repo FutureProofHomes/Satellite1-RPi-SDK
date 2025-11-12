@@ -1,3 +1,9 @@
+satellite1-rpi (0.1.2-1) bookworm; urgency=medium
+
+  * Bump version.
+
+ -- root <root@ca13f4855a85>  Mon, 20 Oct 2025 13:13:12 +0000
+
 satellite1-rpi (0.1.1-2) bookworm; urgency=medium
 
   * Sync with pyproject
