@@ -1,0 +1,47 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+    /* Add bcm2711/bcm2712 if you're on Pi 4/5, e.g.:
+     * compatible = "brcm,bcm2711", "brcm,bcm2710";
+     */
+
+	/* fragment 0: FUSB302 on I2C1 at address 0x22 */
+	fragment@0 {
+	    target = <&i2c1>;  /* adjust to &i2c0 or whatever bus you use */
+	    __overlay__ {
+		status = "okay";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		fusb302: usb_typec@22 {
+		    compatible = "fcs,fusb302";
+		    reg = <0x22>;              /* I2C address of FUSB302 */
+
+		    interrupt-parent = <&gpio>;
+		    interrupts = <17 2>;        /* GPIO 17, level-low (2) – adjust */
+
+		    /* Sink capabilities: fallback 5 V @ 3 A prefer 9 V @ 2 A, */
+		    sink-pdos = <0x0001912C 0x0002D0C8>;
+		    op-sink-microwatt = <2000000>;  /* 2 W operating power (5 V * 0.4 A) */
+		    
+                    connector {
+		      compatible = "usb-c-connector";
+		      label = "USB-C";
+		      power-role = "sink";
+		      data-role = "dual";
+		      try-power-role = "sink";
+
+		      /* Sink capabilities: fallback 5 V @ 3 A prefer 9 V @ 2 A, */
+		      sink-pdos = <0x0001912C 0x0002D0C8>;
+		      op-sink-microwatt = <2000000>;  /* 2 W operating power (5 V * 0.4 A) */
+                    };
+
+		};
+	    };
+	};
+
+};
+

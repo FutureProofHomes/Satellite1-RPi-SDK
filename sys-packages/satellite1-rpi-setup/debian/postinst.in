@@ -1,0 +1,153 @@
+#!/bin/sh
+set -e
+
+echo "satellite1-rpi-setup: postinst starting..."
+
+# ---- Adjust this to match exactly: uname -r and your linux-image-* version ----
+KVER="@KERNEL_RELEASE@"   # <-- make sure this matches `uname -r`
+# ------------------------------------------------------------------------------
+
+KERNEL_IMG="vmlinuz-${KVER}"
+INITRD_IMG="initrd.img-${KVER}"
+FW_KERNEL_NAME="kernel8-fusb302.img"   # name we use in /boot(/firmware)
+FW_INITRD_NAME="initrd.img-${KVER}"    # keep same name in firmware dir
+LINUX_IMAGE_DIR="/usr/lib/linux-image-${KVER}"
+SHARE_OVL="/usr/share/satellite1-rpi-setup/overlays"
+
+# Detect boot dir
+if [ -d /boot/firmware ]; then
+    BOOTDIR="/boot/firmware"
+else
+    BOOTDIR="/boot"
+fi
+
+CFG="${BOOTDIR}/config.txt"
+BOOT_OVL="${BOOTDIR}/overlays"
+
+echo "satellite1-rpi-setup: Using BOOTDIR=${BOOTDIR}, CFG=${CFG}"
+
+# ----- Helpers -----
+
+# Ensure a dtparam key=value exists; if present (even commented), replace with dtparam=key=value
+ensure_dtparam() {
+    key="$1"; val="$2"
+    if grep -Eq "^[#[:space:]]*dtparam[[:space:]]*=[[:space:]]*${key}=" "$CFG"; then
+        sed -i -E "s|^[#[:space:]]*dtparam[[:space:]]*=[[:space:]]*${key}=.*$|dtparam=${key}=${val}|" "$CFG"
+    else
+        printf "dtparam=%s=%s\n" "$key" "$val" >> "$CFG"
+    fi
+}
+
+# Only add dtparam if key is not present in any form
+ensure_dtparam_if_missing() {
+    key="$1"; val="$2"
+    if ! grep -Eq "^[#[:space:]]*dtparam[[:space:]]*=[[:space:]]*${key}=" "$CFG"; then
+        printf "dtparam=%s=%s\n" "$key" "$val" >> "$CFG"
+    fi
+}
+
+# Ensure a dtoverlay line for a specific overlay *name* (with or without params) exists
+# Matches: dtoverlay=name or dtoverlay=name,<params>
+ensure_overlay_name() {
+    name="$1"
+    if ! grep -Eq "^[#[:space:]]*dtoverlay[[:space:]]*=[[:space:]]*${name}(\\b|,)" "$CFG"; then
+        printf "dtoverlay=%s\n" "$name" >> "$CFG"
+    fi
+}
+
+# Ensure an exact dtoverlay line with parameters exists (e.g. "i2c-sensor,addr=0x38,chip=aht20")
+ensure_overlay_line() {
+    line="$1"
+    if ! grep -Eq "^[#[:space:]]*dtoverlay[[:space:]]*=[[:space:]]*${line}[[:space:]]*$" "$CFG"; then
+        printf "dtoverlay=%s\n" "$line" >> "$CFG"
+    fi
+}
+
+case "$1" in
+    configure)
+        # Sanity check: config.txt must exist
+        if [ ! -f "$CFG" ]; then
+            echo "satellite1-rpi-setup: config.txt not found at $CFG" >&2
+            exit 0
+        fi
+
+        # --- Backup config.txt once ---
+        if [ ! -f "${CFG}.satellite1.bak" ]; then
+            cp "${CFG}" "${CFG}.satellite1.bak"
+            echo "satellite1-rpi-setup: Backed up config.txt to ${CFG}.satellite1.bak"
+        fi
+
+        # --- Copy kernel image + initrd into BOOTDIR ---
+        if [ -f "/boot/${KERNEL_IMG}" ]; then
+            cp "/boot/${KERNEL_IMG}" "${BOOTDIR}/${FW_KERNEL_NAME}"
+            echo "satellite1-rpi-setup: Installed kernel image to ${BOOTDIR}/${FW_KERNEL_NAME}"
+        else
+            echo "satellite1-rpi-setup: WARNING: /boot/${KERNEL_IMG} not found" >&2
+        fi
+
+        if [ -f "/boot/${INITRD_IMG}" ]; then
+            cp "/boot/${INITRD_IMG}" "${BOOTDIR}/${FW_INITRD_NAME}"
+            echo "satellite1-rpi-setup: Installed initrd to ${BOOTDIR}/${FW_INITRD_NAME}"
+        else
+            echo "satellite1-rpi-setup: WARNING: /boot/${INITRD_IMG} not found" >&2
+        fi
+
+        # --- Sync DTBs + standard overlays from linux-image package ---
+        if [ -d "${LINUX_IMAGE_DIR}" ]; then
+            mkdir -p "${BOOT_OVL}"
+
+            if [ -d "${LINUX_IMAGE_DIR}/broadcom" ]; then
+                cp -p "${LINUX_IMAGE_DIR}/broadcom/"*.dtb "${BOOTDIR}/" 2>/dev/null || true
+                echo "satellite1-rpi-setup: Copied board DTBs from ${LINUX_IMAGE_DIR}/broadcom/ to ${BOOTDIR}/"
+            fi
+
+            if [ -d "${LINUX_IMAGE_DIR}/overlays" ]; then
+                cp -p "${LINUX_IMAGE_DIR}/overlays/"* "${BOOT_OVL}/" 2>/dev/null || true
+                echo "satellite1-rpi-setup: Copied overlays from ${LINUX_IMAGE_DIR}/overlays/ to ${BOOT_OVL}/"
+            fi
+        else
+            echo "satellite1-rpi-setup: WARNING: ${LINUX_IMAGE_DIR} not found; cannot sync DTBs/overlays" >&2
+        fi
+
+        # --- Ensure firmware boots our kernel + initrd ---
+        if grep -q '^kernel=' "$CFG"; then
+            sed -i "s|^kernel=.*$|kernel=${FW_KERNEL_NAME}|" "$CFG"
+        else
+            echo "kernel=${FW_KERNEL_NAME}" >> "$CFG"
+        fi
+
+        if grep -q '^initramfs ' "$CFG"; then
+            sed -i "s|^initramfs .*|initramfs ${FW_INITRD_NAME} followkernel|" "$CFG"
+        else
+            echo "initramfs ${FW_INITRD_NAME} followkernel" >> "$CFG"
+        fi
+
+        if [ -d "${SHARE_OVL}" ]; then
+            cp -p "${SHARE_OVL}/"*.dtbo "${BOOT_OVL}/" 2>/dev/null || true
+            echo "satellite1-rpi-setup: Copied custom overlays from ${SHARE_OVL} to ${BOOT_OVL}"
+        else
+            echo "satellite1-rpi-setup: WARNING: ${SHARE_OVL} not found; no custom overlays copied." >&2
+        fi
+
+        # ----- Enable required firmware interfaces & overlays -----
+        # Core interfaces
+        ensure_dtparam spi on
+        ensure_dtparam i2s on
+        ensure_dtparam i2c_arm on
+        ensure_dtparam_if_missing i2c_arm_baudrate 100000
+
+        # Your overlays
+        ensure_overlay_name "satellite1-i2s"
+        ensure_overlay_name "fusb302b"
+
+        # Optional sensor overlay
+        ensure_overlay_line "i2c-sensor,addr=0x38,chip=aht20"
+
+        # Avoid card conflicts with legacy analog audio
+        sed -i -E 's/^[[:space:]]*dtparam=audio=on[[:space:]]*$/#dtparam=audio=on/' "$CFG" || true
+
+        echo "satellite1-rpi-setup: Kernel + DTBs + overlays configured. Reboot to apply."
+        ;;
+esac
+
+exit 0

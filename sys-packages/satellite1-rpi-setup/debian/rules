@@ -1,0 +1,33 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+
+%:
+	dh $@
+
+OVERLAY_SRC_DIR := $(CURDIR)/dt-overlays
+DTBO_BUILD_DIR  := $(CURDIR)/debian/.dtbo-build
+OVERLAYS        := satellite1-i2s fusb302
+
+# Build targets (list of .dtbo files we'll produce)
+DTBOS := $(addprefix $(DTBO_BUILD_DIR)/,$(addsuffix .dtbo,$(OVERLAYS)))
+
+
+override_dh_auto_build-arch:
+	$(MAKE) -C $(OVERLAY_SRC_DIR) \
+	    BUILD_DIR=$(DTBO_BUILD_DIR) \
+	    DTC=dtc \
+	    all
+
+# Install phase: do nothing special for now
+override_dh_auto_install-indep:
+	:
+
+# Clean overrides – do something or at least call dh_clean
+override_dh_auto_clean:
+	# clean your build dir if needed
+	rm -rf $(DTBO_BUILD_DIR)
+	# then let debhelper do its normal cleanup
+	dh_auto_clean
+
+override_dh_clean:
+	dh_clean
