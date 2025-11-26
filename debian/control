@@ -1,4 +1,4 @@
-Source: satellite1-rpi
+Source: satellite1-rpi-sdk
 Section: misc
 Priority: optional
 Maintainer: Mischa <mischa.siekmann@futureproofhomes.net>
@@ -7,23 +7,18 @@ Rules-Requires-Root: no
 Build-Depends:
   debhelper-compat (= 13),
   dh-python,
-  device-tree-compiler,
   python3-all,
   python3-setuptools,
   python3-wheel
 Homepage: https://github.com/futureproofhomes/Satellite1-RPi
 
-Package: satellite1-rpi
+Package: satellite1-rpi-sdk
 Architecture: any
 Depends: 
   ${misc:Depends},
   python3-venv, 
   python3-pip, 
-  flashrom,
-  libasound2-plugins
-Recommends:
-  alsa-utils,
-  lm-sensors  
+  flashrom
 Description: Satellite1 I2S overlay, ALSA config, and boot-time I²C init
  Installs Satellite1 device-tree overlay, ALSA PCM config, and a systemd
  oneshot service that initializes the IO expander and DAC at boot.

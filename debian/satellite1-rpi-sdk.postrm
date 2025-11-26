@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+VENVDIR=/opt/satellite1/venv
+
+case "$1" in
+  purge)
+    # Remove the private venv
+    if [ -d "$VENVDIR" ]; then
+      rm -rf "$VENVDIR"
+    fi
+
+    # If wrappers were created dynamically, clean them up too:
+    rm -f /usr/bin/sat1 /usr/bin/sat1-line-out /usr/bin/sat1-xmos
+    ;;
+esac
+
+exit 0

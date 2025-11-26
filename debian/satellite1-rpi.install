@@ -1,7 +1,0 @@
-# Overlays compiled at build time
-debian/.dtbo-build/satellite1-*.dtbo  usr/share/satellite1/overlays/
-
-debian/.wheelhouse/*.whl    usr/share/satellite1/wheels/
-
-etc/satellite1.conf etc/
-etc/alsa/conf.d/50-satellite1.conf etc/alsa/conf.d/

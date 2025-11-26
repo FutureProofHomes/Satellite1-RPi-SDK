@@ -1,22 +1,22 @@
-satellite1-rpi (0.1.3-1) bookworm; urgency=medium
+satellite1-rpi-sdk (0.1.3-1) bookworm; urgency=medium
 
   * Bump version.
 
  -- root <root@0305b68a2145>  Wed, 12 Nov 2025 15:03:40 +0000
 
-satellite1-rpi (0.1.2-1) bookworm; urgency=medium
+satellite1-rpi-sdk (0.1.2-1) bookworm; urgency=medium
 
   * Bump version.
 
  -- root <root@ca13f4855a85>  Mon, 20 Oct 2025 13:13:12 +0000
 
-satellite1-rpi (0.1.1-2) bookworm; urgency=medium
+satellite1-rpi-sdk (0.1.1-2) bookworm; urgency=medium
 
   * Sync with pyproject
 
  -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Tue, 23 Sep 2025 09:55:09 +0000
 
-satellite1-rpi (0.1.0-1) bookworm; urgency=medium
+satellite1-rpi-sdk (0.1.0-1) bookworm; urgency=medium
 
   * Initial release: overlay, ALSA config and init service.
 

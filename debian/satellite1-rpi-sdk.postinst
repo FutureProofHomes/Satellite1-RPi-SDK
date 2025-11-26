@@ -1,0 +1,92 @@
+#!/bin/sh
+set -e
+
+# ----- Python venv & local wheel install (if shipped) -----
+VENVDIR=/opt/satellite1/venv
+WHEELDIR=/usr/share/satellite1/wheels
+
+case "$1" in
+  configure|triggered)
+    # 1) Create venv if missing
+    if [ ! -x "$VENVDIR/bin/python3" ]; then
+      mkdir -p "$(dirname "$VENVDIR")"
+      /usr/bin/python3 -m venv "$VENVDIR"
+    fi
+
+    # 2) Bootstrap pip from stdlib
+    "$VENVDIR/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+
+    # 3) Force offline + tell pip where deps are
+    export PIP_NO_INDEX=1
+    export PIP_FIND_LINKS="$WHEELDIR"
+    export PIP_DISABLE_PIP_VERSION_CHECK=1
+    export PIP_ROOT_USER_ACTION=ignore
+
+    # 4) Find the wheel we ship
+    WHEEL="$(
+      { ls "$WHEELDIR"/satellite1_rpi-*.whl 2>/dev/null; ls "$WHEELDIR"/satellite1-rpi-*.whl 2>/dev/null; } \
+      | sort -V | tail -n1
+    )"
+    if [ -z "$WHEEL" ]; then
+      echo "postinst: ERROR: no satellite1-rpi wheel found in $WHEELDIR" >&2
+      exit 1
+    fi
+
+    # 5) Install our wheel, resolving deps from our wheelhouse
+    "$VENVDIR/bin/pip" install --no-index --find-links="$WHEELDIR" --force-reinstall "$WHEEL"
+
+    # 6) (optional) byte-compile
+    "$VENVDIR/bin/python" -m compileall -q "$VENVDIR/lib" || true
+
+    # 7) (optional) systemd reload
+    command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload || true
+    ;;
+esac
+
+BIN_DIR=/usr/bin
+WRAPPERS="sat1 sat1-line-out sat1-xmos"
+
+ensure_wrapper() {
+  name="$1"
+  target="$VENVDIR/bin/$name"
+  dest="$BIN_DIR/$name"
+
+  if [ -x "$target" ]; then
+    # Preferred: symlink to venv console_script
+    ln -sf "$target" "$dest"
+  else
+    # Fallback: create a tiny shim script that calls the module directly
+    # Adjust module path if your entry points differ
+    case "$name" in
+      sat1)
+        MODULE="satellite1.cli.cli_sat1"
+        ;;
+      sat1-line-out)
+        MODULE="satellite1.cli.cli_line_out_dac"
+        ;;
+      sat1-xmos)
+        MODULE="satellite1.cli.cli_xmos"
+        ;;
+      *)
+        MODULE=""
+        ;;
+    esac
+    if [ -n "$MODULE" ]; then
+      cat > "$dest" <<EOF
+#!/bin/sh
+exec "$VENVDIR/bin/python" -m $MODULE "\$@"
+EOF
+      chmod 755 "$dest"
+    fi
+  fi
+}
+
+for w in $WRAPPERS; do
+  ensure_wrapper "$w"
+done
+hash -r 2>/dev/null || true
+
+
+
+
+exit 0
