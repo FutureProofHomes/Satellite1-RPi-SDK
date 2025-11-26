@@ -99,8 +99,26 @@ class TAS2780:
         
         # Start muted
         self.set_mute_on()
-            
+
+        if self.enabled:
+            self.activate()
+
         log.info("TAS5805M setup complete (muted).")
+    
+    def activate(self):
+        log.debug("Activating TAS2780")
+        with self._i2c as bus:
+            val  = REG.MODE_CTRL_BOP_SRC__PVDD_UVLO & ~REG.MODE_CTRL_MODE_MASK
+            val |= REG.MODE_CTRL_MODE__ACTIVE
+            bus.write_byte(REG.MODE_CTRL, val)
+    
+    def deactivate(self):
+        log.debug("Deactivating TAS2780")
+        with self._i2c as bus:
+            # Set to software shutdown
+            val  = REG.MODE_CTRL_BOP_SRC__PVDD_UVLO & ~REG.MODE_CTRL_MODE_MASK
+            val |= REG.MODE_CTRL_MODE__SFTW_SHTDWN
+            bus.write_byte(REG.MODE_CTRL, val)
 
     def dump_config(self) -> dict[str, int]:
         """Return a small register snapshot useful for debugging."""
