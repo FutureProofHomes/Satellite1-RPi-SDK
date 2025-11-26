@@ -161,6 +161,7 @@ class PCM5122:
         self._volume = vol
         return self._write_volume()
 
+    @property
     def volume(self) -> float:
         return self._volume
 

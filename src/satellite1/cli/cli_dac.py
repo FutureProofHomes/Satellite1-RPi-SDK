@@ -86,7 +86,7 @@ def _handle(args: argparse.Namespace) -> int:
         return 0
     
     if args.cmd == "plugged-in":
-        plugged = line_out_dac.is_plugged_in()
+        plugged = line_out_dac.plugged_in
         log.info("Jack plugged in: %s", plugged)
         print(plugged)
         return 0

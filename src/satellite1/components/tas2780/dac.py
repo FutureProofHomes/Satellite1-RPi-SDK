@@ -7,7 +7,7 @@ from satellite1.hal.i2c_interface import I2cInterface, I2cDeviceConfig
 from .registers import TAS2780_REGS as REG
 log = logging.getLogger(__name__)
 
-__ALL__ = ["TAS2780Config", "TAS2780", "AudioCh"]
+__all__ = ["TAS2780Config", "TAS2780", "AudioCh"]
 
 AudioCh: TypeAlias = Literal["left", "right", "dwn_mix"]
 
@@ -72,7 +72,26 @@ class TAS2780:
             bus.write_byte(0x0D, 0x0D) # Access Page 0xFD
             bus.write_byte(REG.INIT_3, 0x4a) # Optimal Dmin
             bus.write_byte(0x0D, 0x00); # Remove access Page 0xFD
-                        
+            bus.write_byte(REG.PAGE_SELECT, 0x00)
+            
+            # When Y bridge is used (eg. PWR_MODE1) PVDD UVLO threshold needs to be set 2.5 V above VBAT1S level.
+            # UVLO = 1.753V + val * 0.332V 
+            bus.write_byte(REG.PVDD_UVLO, 0x03) # PVDD UVLO set to 2.76V 
+
+            # Set interrupt masks
+            # mask all PVDD and VBAT1S interrupts
+            bus.write_byte(REG.INT_MASK1, 0xff)
+            bus.write_byte(REG.INT_MASK2, 0xff)
+            bus.write_byte(REG.INT_MASK3, 0xff)
+            bus.write_byte(REG.INT_MASK4, 0xff)
+
+            # set interrupt to trigger For 
+            # 0h : On any unmasked live interrupts
+            # 3h : 2 - 4 ms every 4 ms on any unmasked latched
+            val = bus.read_byte(REG.INT_CLK_CFG)
+            val &= ~0x03
+            bus.write_byte(REG.INT_CLK_CFG, val)
+
         # Configure power mode
         self.set_power_mode(self._power_mode)
         self._write_amp_level()
@@ -83,8 +102,6 @@ class TAS2780:
             
         log.info("TAS5805M setup complete (muted).")
 
-    
-
     def dump_config(self) -> dict[str, int]:
         """Return a small register snapshot useful for debugging."""
         with self._i2c as bus:
@@ -92,6 +109,11 @@ class TAS2780:
             }
         log.debug("TAS2780 regs: %s", {k: f"0x{v:02X}" for k, v in regs.items()})
         return regs
+    
+    def dump_curr_state(self) -> dict[str, int]:
+        with self._i2c as bus:
+            curr_mode = bus.read_byte(REG.MODE_CTRL) & REG.MODE_CTRL_MODE_MASK
+            print( f"Current state: {curr_mode}, PowerMode: {self._power_mode}") 
 
     # --- mute/volume API (mirrors C++ names) ---
     def set_mute_off(self) -> bool:
@@ -111,6 +133,7 @@ class TAS2780:
         self._volume = vol
         return self._write_volume()
 
+    @property
     def volume(self) -> float:    
         return self._volume
 

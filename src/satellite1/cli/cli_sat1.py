@@ -23,6 +23,15 @@ def _configure_logging(verbosity: int) -> None:
     log.debug("Logging configured at level=%s", logging.getLevelName(level))
 
 
+def register_pd(sp: argparse._SubParsersAction):
+    def _handle(args: argparse.Namespace) -> int:
+        from satellite1.components.power_delivery import get_pd_contract
+        print( get_pd_contract() )
+    
+    pd_parser = sp.add_parser("pd", help="Show current power delivery contract.")
+    pd_parser.set_defaults(_handler=_handle)
+    
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sat1", description="Satellite1 HAT control")
     p.add_argument("--config", type=Path, default=None, help="TOML config (default: /etc/satellite1.conf)")
@@ -31,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = p.add_subparsers(dest="component", required=True)
     register_dacs(sp)
     register_xmos(sp)
+    register_pd(sp)
 
     return p
 
