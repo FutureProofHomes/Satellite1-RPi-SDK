@@ -7,7 +7,7 @@ from satellite1.hal.i2c_interface import I2cInterface, I2cDeviceConfig
 from .registers import TAS2780_REGS as REG
 log = logging.getLogger(__name__)
 
-__all__ = ["TAS2780Config", "TAS2780", "AudioCh"]
+__ALL__ = ["TAS2780Config", "TAS2780", "AudioCh"]
 
 AudioCh: TypeAlias = Literal["left", "right", "dwn_mix"]
 

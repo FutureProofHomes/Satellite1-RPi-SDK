@@ -6,8 +6,14 @@ import logging
 from .pydantic_argparse import add_pydantic_overrides, collect_overrides
 from ..config_load import load_from_toml
 
-from ..audio_out import LineOutDacConfig, SpeakerDacConfig, get_lineout_dac, get_power_dac, get_active_dac_id
-
+from ..audio_out import (
+    LineOutDacConfig, 
+    SpeakerDacConfig, 
+    get_active_dac_id,
+    get_lineout_dac, 
+    get_power_dac, 
+    setup_dacs
+)
 log = logging.getLogger(__name__)
 
 LINE_OUT_PREFIX = "line-out"
@@ -74,7 +80,7 @@ def _handle(args: argparse.Namespace) -> int:
         print(state)
         return 0
     if args.cmd == "setup":
-        ok = active_dac.setup()
+        ok = setup_dacs(line_out_dac, speaker_dac)
         log.info("DAC setup: %s", ok)
         print(ok)
         return 0
