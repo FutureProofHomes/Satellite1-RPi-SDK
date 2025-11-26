@@ -114,6 +114,72 @@ class TAS2780:
         with self._i2c as bus:
             curr_mode = bus.read_byte(REG.MODE_CTRL) & REG.MODE_CTRL_MODE_MASK
             print( f"Current state: {curr_mode}, PowerMode: {self._power_mode}") 
+            if curr_mode == 2:
+                self.dump_error_state()
+
+    def dump_error_state(self):
+        with self._i2c as bus:
+            latched_its = bus.read_byte(REG.INT_LTCH0)
+            if latched_its & REG.INT_LTCH0_IR_OT:
+                print("Over temperature error!")
+            
+            if latched_its & REG.INT_LTCH0_IR_OC:
+                print("Over current error!")
+
+            if latched_its & REG.INT_LTCH0_IR_TDMCE:
+                print( "TDM Clock Error!")
+  
+            if latched_its & REG.INT_LTCH0_IR_LIMA: 
+                print( "limiter active error!")
+            
+            if latched_its & REG.INT_LTCH0_IR_PBIP:
+                print( "PVDD below limiter inflection point!" )
+            
+            if latched_its & REG.INT_LTCH0_IR_LIMMA:
+                print( "Limiter max attenuation!" )
+  
+            if latched_its & REG.INT_LTCH0_IR_BOPIH: 
+                print( "BOP infinite hold!")
+            
+            if latched_its & REG.INT_LTCH0_IR_BOPM:
+                print("BOP Mute!")
+
+
+            latched1_its = bus.read_byte(REG.INT_LTCH1)
+            if latched1_its & REG.INT_LTCH1_IR_VBATLIM:
+                print( "Gain Limiter interrupt!")
+            
+            if latched1_its & REG.INT_LTCH1_IR_LDMODE:
+                print("Load Diagnostic mode fault status!")
+
+            if latched1_its & REG.INT_LTCH1_IR_LDC:
+                print("Load diagnostic completion!")
+            
+            if latched1_its & REG.INT_LTCH1_IR_OTPCRC:
+                print("OTP CRC error flag!")
+            
+            
+            latched1_0_its = bus.read_byte(REG.INT_LTCH1_0)
+            if latched1_0_its & REG.INT_LTCH1_0_IR_VBAT1S_UVLO:
+                print("VBAT1S Under Voltage!")
+            
+            if latched1_0_its & REG.INT_LTCH1_0_IR_PLL_CLK:
+                print("Internal PLL Clock Error!")
+            
+  
+            latched2_its = bus.read_byte(REG.INT_LTCH2)
+            if latched2_its & REG.INT_LTCH2_IR_PUVLO:
+                print("PVDD UVLO!")
+            
+            if latched2_its & REG.INT_LTCH2_IR_LDO_OL:
+                print("Internal VBAT1S LDO Over Load!")
+            
+            if latched2_its & REG.INT_LTCH2_IR_LDO_OV:
+                print("Internal VBAT1S LDO Over Voltage!")
+            
+            if latched2_its & REG.INT_LTCH2_IR_LDO_UV:
+                print("Internal VBAT1S LDO Under Voltage!")
+            
 
     # --- mute/volume API (mirrors C++ names) ---
     def set_mute_off(self) -> bool:
