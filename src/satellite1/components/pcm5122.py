@@ -7,8 +7,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 from pydantic import BaseModel, Field
-from smbus2 import SMBus
 
+from ..hal.i2c_interface import I2cInterface, I2cInterfaceConfig
 
 log = logging.getLogger(__name__)
 
@@ -65,54 +65,52 @@ class PCM5122:
 
     def __init__(self, cfg: PCM5122Config) -> None:
         self.cfg = cfg
-        self.bus = SMBus(cfg.i2c_bus)
-        self.address = cfg.i2c_addr
+        self._i2c = I2cInterface(cfg.i2c_bus, cfg.i2c_addr)
         
         self._muted = cfg.muted
         self._volume = cfg.volume
         self._gpio_cfg: dict[int, tuple[str, bool]] = {}  # pin -> (mode, inverted)
 
-    # ---- low-level helpers ----
-    def _w(self, reg: int, val: int) -> None:
-        self.bus.write_byte_data(self.address, reg, val & 0xFF)
-
-    def _r(self, reg: int) -> int:
-        return self.bus.read_byte_data(self.address, reg) & 0xFF
-
+    @property
+    def enabled(self) -> bool:
+        return self.cfg.enabled
+    
     # ---- high-level API ----
     def setup(self) -> None:
         """Initialize the chip: probe, soft-reset, ignore clock-halt, autoset dividers,
         32-bit I²S, PLL ref=BCK, and start muted.
         """
-        log.info("Setting up PCM5122 @ 0x%02X on i2c-%d…", self.address, self.cfg.i2c_bus)
-        self._w(self.REG_PAGE_SELECT, 0x00)  # select page 0
+        log.info("Setting up PCM5122 @ 0x%02X on i2c-%d…", self.cfg.i2c_addr, self.cfg.i2c_bus)
+        
+        with self._i2c as bus:
+            bus.write_byte(self.REG_PAGE_SELECT, 0x00)  # select page 0
 
-        chd1 = self._r(self.REG_CHIP_ID1)
-        chd2 = self._r(self.REG_CHIP_ID2)
-        if not (chd1 == 0x00 and chd2 == 0x00):
-            # The original code checked for both zeros
-            log.error("PCM5122 not found (chip-id bytes: 0x%02X 0x%02X).", chd1, chd2)
-            raise RuntimeError("PCM5122 probe failed")
+            chd1 = bus.read_byte(self.REG_CHIP_ID1)
+            chd2 = bus.read_byte(self.REG_CHIP_ID2)
+            if not (chd1 == 0x00 and chd2 == 0x00):
+                # The original code checked for both zeros
+                log.error("PCM5122 not found (chip-id bytes: 0x%02X 0x%02X).", chd1, chd2)
+                raise RuntimeError("PCM5122 probe failed")
 
-        # Soft reset (mirror C++: 0x10 then back to 0)
-        self._w(self.REG_SW_RST, 0x10)
-        time.sleep(0.020)
-        self._w(self.REG_SW_RST, 0x00)
+            # Soft reset (mirror C++: 0x10 then back to 0)
+            bus.write_byte(self.REG_SW_RST, 0x10)
+            time.sleep(0.020)
+            bus.write_byte(self.REG_SW_RST, 0x00)
 
-        # Error detect: set 'Ignore Clock Halt Detection' (bit3), clear 'disable autoset' (bit1)
-        v = self._r(self.REG_ERR_DETECT)
-        v |= (1 << 3)
-        v &= ~(1 << 1)
-        self._w(self.REG_ERR_DETECT, v)
+            # Error detect: set 'Ignore Clock Halt Detection' (bit3), clear 'disable autoset' (bit1)
+            v = bus.read_byte(self.REG_ERR_DETECT)
+            v |= (1 << 3)
+            v &= ~(1 << 1)
+            bus.write_byte(self.REG_ERR_DETECT, v)
 
-        # 32-bit I²S word length
-        self._w(self.REG_WORD_LEN, 0x03)
+            # 32-bit I²S word length
+            bus.write_byte(self.REG_WORD_LEN, 0x03)
 
-        # PLL reference = BCK (bits [6:4] = 001)
-        v = self._r(self.REG_PLL_REF)
-        v &= ~(0x7 << 4)
-        v |= (1 << 4)
-        self._w(self.REG_PLL_REF, v)
+            # PLL reference = BCK (bits [6:4] = 001)
+            v = bus.read_byte(self.REG_PLL_REF)
+            v &= ~(0x7 << 4)
+            v |= (1 << 4)
+            bus.write_byte(self.REG_PLL_REF, v)
 
         # Start muted
         self.set_mute_on()
@@ -120,18 +118,20 @@ class PCM5122:
 
     def dump_config(self) -> dict[str, int]:
         """Return a small register snapshot useful for debugging."""
-        regs = {
-            "PAGE": self._r(self.REG_PAGE_SELECT),
-            "ID1": self._r(self.REG_CHIP_ID1),
-            "ID2": self._r(self.REG_CHIP_ID2),
-            "RST": self._r(self.REG_SW_RST),
-            "ERR": self._r(self.REG_ERR_DETECT),
-            "WORDLEN": self._r(self.REG_WORD_LEN),
-            "PLL_REF": self._r(self.REG_PLL_REF),
-            "DVC_L": self._r(self.REG_DVC_L),
-            "DVC_R": self._r(self.REG_DVC_R),
-            "MUTE": self._r(self.REG_MUTE),
-        }
+        
+        with self._i2c as bus:
+            regs = {
+                "PAGE": bus.read_byte(self.REG_PAGE_SELECT),
+                "ID1": bus.read_byte(self.REG_CHIP_ID1),
+                "ID2": bus.read_byte(self.REG_CHIP_ID2),
+                "RST": bus.read_byte(self.REG_SW_RST),
+                "ERR": bus.read_byte(self.REG_ERR_DETECT),
+                "WORDLEN": bus.read_byte(self.REG_WORD_LEN),
+                "PLL_REF": bus.read_byte(self.REG_PLL_REF),
+                "DVC_L": bus.read_byte(self.REG_DVC_L),
+                "DVC_R": bus.read_byte(self.REG_DVC_R),
+                "MUTE": bus.read_byte(self.REG_MUTE),
+            }
         log.debug("PCM5122 regs: %s", {k: f"0x{v:02X}" for k, v in regs.items()})
         return regs
 
@@ -159,8 +159,9 @@ class PCM5122:
     # ---- writers ----
     def _write_mute(self) -> bool:
         try:
-            self._w(self.REG_PAGE_SELECT, 0x00)
-            self._w(self.REG_MUTE, 0x11 if self._muted else 0x00)
+            with self._i2c as bus:
+                bus.write_byte(self.REG_PAGE_SELECT, 0x00)
+                bus.write_byte(self.REG_MUTE, 0x11 if self._muted else 0x00)
             return True
         except OSError as e:
             log.error("Writing mute failed: %s", e)
@@ -172,9 +173,10 @@ class PCM5122:
         code = max(0, min(0xFF, code))
         log.debug("Setting DVC to 0x%02X (vol=%.3f)", code, self._volume)
         try:
-            self._w(self.REG_PAGE_SELECT, 0x00)
-            self._w(self.REG_DVC_L, code)
-            self._w(self.REG_DVC_R, code)
+            with self._i2c as bus:
+                bus.write_byte(self.REG_PAGE_SELECT, 0x00)
+                bus.write_byte(self.REG_DVC_L, code)
+                bus.write_byte(self.REG_DVC_R, code)
             return True
         except OSError as e:
             log.error("Writing volume failed: %s", e)
@@ -185,7 +187,8 @@ class PCM5122:
         """Configure a PCM5122 GPIO pin as input or output; optionally inverted."""
         self._check_pin(pin)
         bit = 1 << (pin - 1)
-        self._w(self.REG_PAGE_SELECT, 0x00)
+        with self._i2c as bus:
+            bus.write_byte(self.REG_PAGE_SELECT, 0x00)
 
         # Direction: 0=input, 1=output
         if mode == 'in':
@@ -193,7 +196,8 @@ class PCM5122:
         elif mode == 'out':
             self._update_bits(self.REG_GPIO_DIR, bit, bit)
             # Set function to "GPIO" (datasheet: write 0x02) for outputs
-            self._w(self.REG_GPIO_FUNC0 + (pin - 1), 0x02)
+            with self._i2c as bus:
+                bus.write_byte(self.REG_GPIO_FUNC0 + (pin - 1), 0x02)
         else:
             raise ValueError("mode must be 'in' or 'out'")
 
@@ -213,7 +217,8 @@ class PCM5122:
             # still allow, but warn
             log.warning("gpio_write on pin %d configured as '%s'", pin, mode)
         bit = 1 << (pin - 1)
-        self._w(self.REG_PAGE_SELECT, 0x00)
+        with self._i2c as bus:
+            bus.write_byte(self.REG_PAGE_SELECT, 0x00)
         self._update_bits(self.REG_GPIO_OUT, bit, bit if value else 0)
 
     def gpio_read(self, pin: int) -> bool:
@@ -221,32 +226,21 @@ class PCM5122:
         self._check_pin(pin)
         _mode, inverted = self._gpio_cfg.get(pin, ('in', False))
         bit = 1 << (pin - 1)
-        self._w(self.REG_PAGE_SELECT, 0x00)
-        raw = bool(self._r(self.REG_GPIO_IN) & bit)
+        with self._i2c as bus:
+            bus.write_byte(self.REG_PAGE_SELECT, 0x00)
+            raw = bool(bus.read_byte(self.REG_GPIO_IN) & bit)
         return (not raw) if inverted else raw    
 
     def _update_bits(self, reg: int, mask: int, set_bits: int) -> int:
-        v = self._r(reg)
-        nv = (v & ~mask) | (set_bits & mask)
-        if nv != v:
-            self._w(reg, nv)
-        return nv
+        with self._i2c as bus:
+            v = bus.read_byte(reg)
+            nv = (v & ~mask) | (set_bits & mask)
+            if nv != v:
+                bus.write_byte(reg, nv)
+            return nv
 
     def _check_pin(self, pin: int) -> None:
         if not (self._GPIO_MIN_PIN <= pin <= self._GPIO_MAX_PIN):
             raise ValueError(f"pin must be {self._GPIO_MIN_PIN}..{self._GPIO_MAX_PIN}")
 
-
-    # ---- context manager ----
-    def close(self) -> None:
-        try:
-            self.bus.close()
-        except Exception:
-            pass
-
-    def __enter__(self) -> "PCM5122":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        self.close()
 

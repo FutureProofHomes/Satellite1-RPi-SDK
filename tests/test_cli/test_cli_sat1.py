@@ -1,68 +1,91 @@
-from __future__ import annotations
-from pathlib import Path
-import types
+# tests/test_cli_root.py
+#
+# Adjust this import to match your package layout, e.g.:
+# from satellite1.cli import main as cli_mod
+from satellite1.cli import cli_sat1 as cli_mod  # <-- CHANGE THIS
+
+
+import argparse
+import logging
+
 import pytest
 
-import satellite1.cli.cli_sat1 as hub
-import satellite1.cli.cli_line_out_dac as dac_cli
-import satellite1.cli.cli_xmos as x_cli
+
+@pytest.mark.parametrize(
+    "verbosity, expected_level",
+    [
+        (0, logging.WARNING),
+        (1, logging.INFO),
+        (2, logging.DEBUG),
+        (3, logging.DEBUG),
+    ],
+)
+def test_configure_logging_sets_expected_level(verbosity, expected_level):
+    """_configure_logging should map verbosity -> logging level correctly."""
+    cli_mod._configure_logging(verbosity)
+
+    # The module logger should reflect the effective level from root
+    logger = logging.getLogger(cli_mod.__name__)
+    assert logger.getEffectiveLevel() == expected_level
 
 
-@pytest.fixture(autouse=True)
-def stub_components(monkeypatch):
-    # --- stub DAC side used by dac_cli handlers ---
-    real_cfg_cls = dac_cli.LineOutDACConfig
+def test_build_parser_calls_register_functions(monkeypatch):
+    """build_parser must call register_dacs and register_xmos with subparsers."""
 
-    def fake_load_from_toml(model_cls, *, config_path: Path | None, overrides: dict | None):
-        assert model_cls is real_cfg_cls
-        return real_cfg_cls(enabled=True, startup_volume=0.33, startup_muted=False)
+    called = {"dacs": False, "xmos": False}
 
-    class FakeDAC:
-        def __init__(self, cfg): self._v = cfg.startup_volume
-        @property
-        def volume(self): return self._v
-        def set_volume(self, v): self._v = v; return v
-        def mute(self): return True
-        def unmute(self): return False
-        def is_plugged_in(self): return True
-        def setup(self): return True
+    def fake_register_dacs(sp):
+        assert isinstance(sp, argparse._SubParsersAction)
+        called["dacs"] = True
 
-    monkeypatch.setattr(dac_cli, "load_from_toml", fake_load_from_toml, raising=True)
-    monkeypatch.setattr(dac_cli, "LineOutDAC", FakeDAC, raising=True)
+    def fake_register_xmos(sp):
+        assert isinstance(sp, argparse._SubParsersAction)
+        called["xmos"] = True
 
-    # --- stub XMOS used by x_cli handlers (hub imports the handler via register) ---
-    class FakeXMOS:
-        def setup(self): return True
-        def read_firmware(self): return "v9.9.9"
-        def read_status(self): return b"\xAA\xBB"
-        def reset_xmos(self): return True
-        def flash_firmware(self, img: Path, verify: bool = False): return True
+    monkeypatch.setattr(cli_mod, "register_dacs", fake_register_dacs)
+    monkeypatch.setattr(cli_mod, "register_xmos", fake_register_xmos)
 
-    monkeypatch.setattr(x_cli, "XMOS", FakeXMOS, raising=True)
+    parser = cli_mod.build_parser()
+    assert isinstance(parser, argparse.ArgumentParser)
+    assert called["dacs"] is True
+    assert called["xmos"] is True
 
 
-def run(argv, capsys):
-    rc = hub.main(argv)
-    io = capsys.readouterr()
-    return rc, io.out.strip()
+def test_main_invokes_handler_and_returns_code(monkeypatch):
+    """main() should call the _handler set by the selected subcommand."""
+
+    def fake_register_dacs(sp):
+        # Register a 'dac' subcommand whose handler returns 7
+        p = sp.add_parser("dac", help="fake dac")
+        def handler(args):
+            return 7
+        p.set_defaults(_handler=handler)
+
+    def fake_register_xmos(sp):
+        # Register something else, but we don't use it in this test
+        sp.add_parser("xmos", help="fake xmos")
+
+    monkeypatch.setattr(cli_mod, "register_dacs", fake_register_dacs)
+    monkeypatch.setattr(cli_mod, "register_xmos", fake_register_xmos)
+
+    # Call main as if CLI was: sat1 dac
+    rc = cli_mod.main(["dac"])
+    assert rc == 7
 
 
-def test_hub_dac_volume(capsys):
-    rc, out = run(["dac", "volume"], capsys)
-    assert rc == 0 and out == "0.33"
+def test_main_returns_2_if_no_handler(monkeypatch):
+    """If no _handler is attached to the chosen subcommand, main should return 2."""
 
+    def fake_register_dacs(sp):
+        # Subcommand without _handler default
+        sp.add_parser("dac", help="dac without handler")
 
-def test_hub_dac_set_volume(capsys):
-    rc, out = run(["dac", "set-volume", "0.7"], capsys)
-    assert rc == 0 and out == "0.7"
+    def fake_register_xmos(sp):
+        sp.add_parser("xmos", help="xmos without handler")
 
+    monkeypatch.setattr(cli_mod, "register_dacs", fake_register_dacs)
+    monkeypatch.setattr(cli_mod, "register_xmos", fake_register_xmos)
 
-def test_hub_xmos_read_firmware(capsys):
-    rc, out = run(["xmos", "read-firmware"], capsys)
-    assert rc == 0 and out == "v9.9.9"
-
-
-def test_hub_verbose_flag(capsys):
-    # Ensure logging setup doesn't crash and command still runs
-    rc, out = run(["-vv", "dac", "mute"], capsys)
-    assert rc == 0 and out == "True"
+    # sat1 dac  -> 'dac' subcommand, but no _handler set
+    rc = cli_mod.main(["dac"])
+    assert rc == 2

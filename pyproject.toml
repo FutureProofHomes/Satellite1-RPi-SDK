@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "satellite1-rpi"
+name = "satellite1"
 version = "0.1.3"
 description = "Control library for the Satellite1 Raspberry Pi HAT"
 readme = "README.md"
@@ -33,11 +33,8 @@ include = ["satellite1", "satellite1.*"]
 
 [project.scripts]
 sat1 = "satellite1.cli.cli_sat1:main"
-sat1-line-out = "satellite1.cli.cli_line_out_dac:main"
+sat1-dac = "satellite1.cli.cli_audio_out:main"
 sat1-xmos = "satellite1.cli.cli_xmos:xmos_main"
-
-
-
 
 [tool.pytest.ini_options]
 minversion = "6.0"

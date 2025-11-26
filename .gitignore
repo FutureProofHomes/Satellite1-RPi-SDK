@@ -6,6 +6,7 @@
 
 # Common local build dirs
 /.pybuild/
+/.pytest_cache
 /build/
 /build-*/
 overlays/build/

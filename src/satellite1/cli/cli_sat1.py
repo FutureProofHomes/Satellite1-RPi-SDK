@@ -3,7 +3,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from .cli_line_out_dac import register as register_dac
+from .cli_dac import register as register_dacs
 from .cli_xmos import register as register_xmos
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v, -vv)")
 
     sp = p.add_subparsers(dest="component", required=True)
-    register_dac(sp)
+    register_dacs(sp)
     register_xmos(sp)
 
     return p
