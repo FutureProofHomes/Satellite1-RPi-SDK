@@ -7,7 +7,7 @@ import time
 from typing import Literal
 from pydantic import BaseModel, Field
 
-from ..hal.i2c_interface import I2cInterface, I2cInterfaceConfig
+from ..hal.i2c_interface import I2cInterface
 
 log = logging.getLogger(__name__)
 
