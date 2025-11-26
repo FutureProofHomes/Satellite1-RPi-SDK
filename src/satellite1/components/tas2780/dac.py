@@ -111,11 +111,12 @@ class TAS2780:
         return regs
     
     def dump_curr_state(self) -> dict[str, int]:
+        curr_mode = None
         with self._i2c as bus:
             curr_mode = bus.read_byte(REG.MODE_CTRL) & REG.MODE_CTRL_MODE_MASK
             print( f"Current state: {curr_mode}, PowerMode: {self._power_mode}") 
-            if curr_mode == 2:
-                self.dump_error_state()
+        if curr_mode == 2:
+            self.dump_error_state()
 
     def dump_error_state(self):
         with self._i2c as bus:
