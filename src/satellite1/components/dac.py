@@ -20,5 +20,5 @@ class DAC(Protocol):
         ...
     
     @property
-    def active(self) -> bool:
+    def enabled(self) -> bool:
         ...
