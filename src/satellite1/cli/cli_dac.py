@@ -11,7 +11,7 @@ from ..audio_out import (
     SpeakerDacConfig, 
     get_active_dac_id,
     get_lineout_dac, 
-    get_power_dac, 
+    get_speaker_dac, 
     setup_dacs
 )
 log = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def _handle(args: argparse.Namespace) -> int:
     log.debug("Effective SpkDac config: %s", cfg_spk.model_dump())
 
     line_out_dac = get_lineout_dac(cfg_line)
-    speaker_dac = get_power_dac(cfg_spk)
+    speaker_dac = get_speaker_dac(cfg_spk)
     
     dac_key: str = args.dac
     if dac_key == 'auto':
