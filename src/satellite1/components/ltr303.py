@@ -1,5 +1,6 @@
-from smbus2 import SMBus
 import time
+
+from ..hal.i2c_interface import I2cInterface
 
 LTR303_ADDR = 0x29
 
@@ -14,18 +15,20 @@ REG_PARTID  = 0x86
 
 class LTR303:
     def __init__(self, bus=1, addr=LTR303_ADDR):
-        self.bus = SMBus(bus)
-        self.addr = addr
+        self._i2c = I2cInterface(bus, addr)
 
     def write8(self, reg, val):
-        self.bus.write_byte_data(self.addr, reg, val)
+        with self._i2c as bus:
+            bus.write_byte(reg, val)
 
     def read8(self, reg):
-        return self.bus.read_byte_data(self.addr, reg)
+        with self._i2c as bus:
+            return bus.read_byte(reg)
 
     def read16(self, lo, hi):
-        l = self.read8(lo)
-        h = self.read8(hi)
+        with self._i2c as bus:
+            l = bus.read_byte(lo)
+            h = bus.read_byte(hi)
         return (h << 8) | l
 
     def begin(self, gain=0b001, integ=0x02, rate=0x03):

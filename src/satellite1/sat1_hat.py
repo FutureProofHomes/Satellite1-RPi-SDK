@@ -158,6 +158,7 @@ class XMOS():
                 continue
             
             print( f"step: {step} passed")    
+    
     def set_mic_left_output(self, out_select:int) -> None:
         if 0 <= out_select <= 7 :
              ok, data = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_LEFT_SELECT, [out_select] )

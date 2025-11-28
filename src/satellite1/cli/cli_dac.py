@@ -80,6 +80,12 @@ def _handle(args: argparse.Namespace) -> int:
         log.info("Muted: %s", state)
         print(state)
         return 0
+    
+    if args.cmd == "status":
+        print(line_out_dac.report_status())
+        print(speaker_dac.report_status())
+        return 0
+    
     if args.cmd == "setup":
         ok = setup_dacs(line_out_dac, speaker_dac)
         log.info("DAC setup: %s", ok)
@@ -110,6 +116,7 @@ def attach_dac_parser(parser: argparse.ArgumentParser ) -> None:
     sp.add_parser("unmute", help="Unmute line-out")
     sp.add_parser("setup", help="Initialise the DAC")
     sp.add_parser("plugged-in", help="Check if jack is plugged in")
+    sp.add_parser("status", help="Get some current state information")
     
     parser.set_defaults(_handler=_handle)
 

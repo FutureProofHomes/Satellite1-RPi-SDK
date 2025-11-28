@@ -1,5 +1,3 @@
-# pcm5122.py
-# Requires: pip install smbus2
 from __future__ import annotations
 
 import logging
@@ -113,6 +111,8 @@ class PCM5122:
 
         # Start muted
         self.set_mute_on()
+        
+        # Setup GPIOs
         for pin_cfg in self.cfg.gpio:
             self.gpio_setup(
                 pin=pin_cfg.pin, 

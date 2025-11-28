@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 __all__ = ["TAS2780Config", "TAS2780", "AudioCh"]
 
+PwrMode: TypeAlias = Literal[0,1,2,3]
 AudioCh: TypeAlias = Literal["left", "right", "dwn_mix"]
 
 class TAS2780Config(I2cDeviceConfig):
@@ -16,25 +17,20 @@ class TAS2780Config(I2cDeviceConfig):
     volume: float = Field(0.7, ge=0.0, le=1.0)
     muted: bool = False
     
-    power_mode: int = Field(0, ge=0, le=3)  # PWR_MODE0 to PWR_MODE3
+    power_mode: PwrMode = 0
     channel: AudioCh = "dwn_mix"
     amp_level: int = Field(8, ge=0, le=0x14)  
 
 class TAS2780:
     """"""
-    SW_RESET = 0x01  # Software Reset
-    MODE_CTRL = 0x02  # Device operational mode
-    CHNL_0 = 0x03  # Y Bridge and Channel settings
-    
-    
     def __init__(self, config: TAS2780Config):
-        self.config = config
-        self._i2c = I2cInterface(config.i2c_bus, config.i2c_addr)
-        self._muted = config.muted
-        self._volume = config.volume
-        self._power_mode = config.power_mode
-        self._channel = config.channel
-        self._amp_level = config.amp_level
+        self.config: TAS2780Config = config
+        self._i2c: I2cInterface = I2cInterface(config.i2c_bus, config.i2c_addr)
+        self._muted: bool = config.muted
+        self._volume: float = config.volume
+        self._power_mode: PwrMode = config.power_mode
+        self._channel: AudioCh = config.channel
+        self._amp_level: int = config.amp_level
     
     @property
     def enabled(self) -> bool:
@@ -43,19 +39,147 @@ class TAS2780:
     def setup(self) -> None:
         """Initialize the chip: probe, soft-reset, configure I2S, start muted."""
         log.info("Setting up TAS5805M @ 0x%02X on i2c-%d…", self.config.i2c_addr, self.config.i2c_bus)
+        self._init_dac()
         
+        # Configure power mode
+        self.set_power_mode(self._power_mode)
+        self._write_amp_level()
+        self._write_channel()
+        
+        # Start muted
+        self.set_mute_on()
+
+        if self.enabled:
+            self.activate()
+
+        log.info("TAS5805M setup complete (muted).")
+    
+    def activate(self) -> None:
+        log.debug("Activating TAS2780")
         with self._i2c as bus:
-            # Select page 0
+            val  = REG.MODE_CTRL_BOP_SRC__PVDD_UVLO & ~REG.MODE_CTRL_MODE_MASK
+            val |= REG.MODE_CTRL_MODE__ACTIVE
+            bus.write_byte(REG.MODE_CTRL, val)
+    
+    def deactivate(self) -> None:
+        log.debug("Deactivating TAS2780")
+        with self._i2c as bus:
+            # Set to software shutdown
+            val  = REG.MODE_CTRL_BOP_SRC__PVDD_UVLO & ~REG.MODE_CTRL_MODE_MASK
+            val |= REG.MODE_CTRL_MODE__SFTW_SHTDWN
+            bus.write_byte(REG.MODE_CTRL, val)
+    
+    def get_state(self) -> dict[str,str|list[str]]:
+        curr_mode = None
+        with self._i2c as bus:
+            curr_mode = bus.read_byte(REG.MODE_CTRL) & REG.MODE_CTRL_MODE_MASK
+            log.info( f"Current state: {curr_mode}, PowerMode: {self._power_mode}") 
+        err_states = self.read_error_states()
+        for err_str in err_states:
+            log.error(err_str)
+        return {
+            "state": curr_mode,
+            "errors": err_states
+        }
+        
+    def read_error_states(self) -> list[str]:
+        latched0_its_errs = {
+            REG.INT_LTCH0_IR_OT: "Over temperature error!",
+            REG.INT_LTCH0_IR_OC: "Over current error!",
+            REG.INT_LTCH0_IR_TDMCE: "TDM Clock Error!",
+            REG.INT_LTCH0_IR_LIMA: "Limiter active error!",
+            REG.INT_LTCH0_IR_PBIP: "PVDD below limiter inflection point!",
+            REG.INT_LTCH0_IR_LIMMA: "Limiter max attenuation!",
+            REG.INT_LTCH0_IR_BOPIH: "BOP infinite hold!",  
+            REG.INT_LTCH0_IR_BOPM: "BOP Mute!"
+        }
+        latched1_its_errs = {
+            REG.INT_LTCH1_IR_VBATLIM: "Gain Limiter interrupt!",
+            REG.INT_LTCH1_IR_LDMODE: "Load Diagnostic mode fault status!",
+            REG.INT_LTCH1_IR_OTPCRC: "OTP CRC error flag!"
+        }
+        latched1_0_its_errs = {
+            REG.INT_LTCH1_0_IR_VBAT1S_UVLO: "VBAT1S Under Voltage!",
+            REG.INT_LTCH1_0_IR_PLL_CLK: "Internal PLL Clock Error!"
+        }
+        latched2_its_errs = {
+            REG.INT_LTCH2_IR_PUVLO: "PVDD UVLO!",
+            REG.INT_LTCH2_IR_LDO_OL: "Internal VBAT1S LDO Over Load!",
+            REG.INT_LTCH2_IR_LDO_OV: "Internal VBAT1S LDO Over Voltage!",
+            REG.INT_LTCH2_IR_LDO_UV: "Internal VBAT1S LDO Under Voltage!"
+        }
+
+        reg_errs_map = {
+            REG.INT_LTCH0: latched0_its_errs,
+            REG.INT_LTCH1: latched1_its_errs,
+            REG.INT_LTCH1_0: latched1_0_its_errs,
+            REG.INT_LTCH2: latched2_its_errs
+        }
+
+        errors = []
+        with self._i2c as bus:
+            for reg, flag_map in reg_errs_map.items():
+                reg_val = bus.read_byte(reg)
+                errors.extend(
+                    [ err 
+                        for flag, err in flag_map.items 
+                        if flag & reg_val
+                    ]
+                )
+        return errors
+            
+
+    # --- mute/volume API ---
+    def set_mute_off(self) -> bool:
+        self._muted = False
+        return self._write_mute()
+
+    def set_mute_on(self) -> bool:
+        self._muted = True
+        return self._write_mute()
+
+    def is_muted(self) -> bool:
+        return self._muted
+
+    def set_volume(self, volume: float) -> bool:
+        """Set volume [0.0..1.0] where 1.0 is loudest"""
+        vol = max(0.0, min(1.0, float(volume)))
+        self._volume = vol
+        return self._write_volume()
+
+    @property
+    def volume(self) -> float:    
+        return self._volume
+
+    # ---- power management ----
+    def set_power_mode(self, mode: PwrMode) -> bool:
+        """Set power mode (0-3)"""
+        if not 0 <= mode <= 3:
+            raise ValueError("Power mode must be 0-3")
+        try:
+            self._write_power_mode(mode)
+            self._power_mode = mode
+            return True
+        except OSError as e:
+            log.error("Setting power mode failed: %s", e)
+            return False
+
+    def get_power_mode(self) -> PwrMode:
+        """Get current power mode"""
+        return self._power_mode
+    
+    # ---- writers ----
+    def _init_dac(self) -> None:
+        with self._i2c as bus:
             bus.write_byte(REG.PAGE_SELECT, 0x00)
             bus.write_byte(REG.SW_RESET, 0x01) # soft reset
-
 
             # Chip ID check
             chd1 = bus.read_byte(0x05)
             chd2 = bus.read_byte(0x68)
             chd3 = bus.read_byte(0x02)
             if not (chd1 == 0x41 ):
-                log.error("TAS5805M not found (chip-id bytes: 0x%02X 0x%02X).", chd1, chd2)
+                log.error("TAS5805M not found (chip-id bytes: 0x%02X 0x%02X 0x%02X).", chd1, chd2, chd3)
                 raise RuntimeError("TAS5805M probe failed")
         
             bus.write_byte(REG.PAGE_SELECT, 0x00)
@@ -92,154 +216,7 @@ class TAS2780:
             val &= ~0x03
             bus.write_byte(REG.INT_CLK_CFG, val)
 
-        # Configure power mode
-        self.set_power_mode(self._power_mode)
-        self._write_amp_level()
-        self._write_channel()
-        
-        # Start muted
-        self.set_mute_on()
 
-        if self.enabled:
-            self.activate()
-
-        log.info("TAS5805M setup complete (muted).")
-    
-    def activate(self):
-        log.debug("Activating TAS2780")
-        with self._i2c as bus:
-            val  = REG.MODE_CTRL_BOP_SRC__PVDD_UVLO & ~REG.MODE_CTRL_MODE_MASK
-            val |= REG.MODE_CTRL_MODE__ACTIVE
-            bus.write_byte(REG.MODE_CTRL, val)
-    
-    def deactivate(self):
-        log.debug("Deactivating TAS2780")
-        with self._i2c as bus:
-            # Set to software shutdown
-            val  = REG.MODE_CTRL_BOP_SRC__PVDD_UVLO & ~REG.MODE_CTRL_MODE_MASK
-            val |= REG.MODE_CTRL_MODE__SFTW_SHTDWN
-            bus.write_byte(REG.MODE_CTRL, val)
-
-    def dump_config(self) -> dict[str, int]:
-        """Return a small register snapshot useful for debugging."""
-        with self._i2c as bus:
-            regs = {
-            }
-        log.debug("TAS2780 regs: %s", {k: f"0x{v:02X}" for k, v in regs.items()})
-        return regs
-    
-    def dump_curr_state(self) -> dict[str, int]:
-        curr_mode = None
-        with self._i2c as bus:
-            curr_mode = bus.read_byte(REG.MODE_CTRL) & REG.MODE_CTRL_MODE_MASK
-            print( f"Current state: {curr_mode}, PowerMode: {self._power_mode}") 
-        if curr_mode == 2:
-            self.dump_error_state()
-
-    def dump_error_state(self):
-        with self._i2c as bus:
-            latched_its = bus.read_byte(REG.INT_LTCH0)
-            if latched_its & REG.INT_LTCH0_IR_OT:
-                print("Over temperature error!")
-            
-            if latched_its & REG.INT_LTCH0_IR_OC:
-                print("Over current error!")
-
-            if latched_its & REG.INT_LTCH0_IR_TDMCE:
-                print( "TDM Clock Error!")
-  
-            if latched_its & REG.INT_LTCH0_IR_LIMA: 
-                print( "limiter active error!")
-            
-            if latched_its & REG.INT_LTCH0_IR_PBIP:
-                print( "PVDD below limiter inflection point!" )
-            
-            if latched_its & REG.INT_LTCH0_IR_LIMMA:
-                print( "Limiter max attenuation!" )
-  
-            if latched_its & REG.INT_LTCH0_IR_BOPIH: 
-                print( "BOP infinite hold!")
-            
-            if latched_its & REG.INT_LTCH0_IR_BOPM:
-                print("BOP Mute!")
-
-
-            latched1_its = bus.read_byte(REG.INT_LTCH1)
-            if latched1_its & REG.INT_LTCH1_IR_VBATLIM:
-                print( "Gain Limiter interrupt!")
-            
-            if latched1_its & REG.INT_LTCH1_IR_LDMODE:
-                print("Load Diagnostic mode fault status!")
-
-            if latched1_its & REG.INT_LTCH1_IR_LDC:
-                print("Load diagnostic completion!")
-            
-            if latched1_its & REG.INT_LTCH1_IR_OTPCRC:
-                print("OTP CRC error flag!")
-            
-            
-            latched1_0_its = bus.read_byte(REG.INT_LTCH1_0)
-            if latched1_0_its & REG.INT_LTCH1_0_IR_VBAT1S_UVLO:
-                print("VBAT1S Under Voltage!")
-            
-            if latched1_0_its & REG.INT_LTCH1_0_IR_PLL_CLK:
-                print("Internal PLL Clock Error!")
-            
-  
-            latched2_its = bus.read_byte(REG.INT_LTCH2)
-            if latched2_its & REG.INT_LTCH2_IR_PUVLO:
-                print("PVDD UVLO!")
-            
-            if latched2_its & REG.INT_LTCH2_IR_LDO_OL:
-                print("Internal VBAT1S LDO Over Load!")
-            
-            if latched2_its & REG.INT_LTCH2_IR_LDO_OV:
-                print("Internal VBAT1S LDO Over Voltage!")
-            
-            if latched2_its & REG.INT_LTCH2_IR_LDO_UV:
-                print("Internal VBAT1S LDO Under Voltage!")
-            
-
-    # --- mute/volume API (mirrors C++ names) ---
-    def set_mute_off(self) -> bool:
-        self._muted = False
-        return self._write_mute()
-
-    def set_mute_on(self) -> bool:
-        self._muted = True
-        return self._write_mute()
-
-    def is_muted(self) -> bool:
-        return self._muted
-
-    def set_volume(self, volume: float) -> bool:
-        """Set volume [0.0..1.0] where 1.0 is loudest"""
-        vol = max(0.0, min(1.0, float(volume)))
-        self._volume = vol
-        return self._write_volume()
-
-    @property
-    def volume(self) -> float:    
-        return self._volume
-
-    # ---- power management ----
-    def set_power_mode(self, mode: int) -> bool:
-        """Set power mode (0-3)"""
-        if not 0 <= mode <= 3:
-            raise ValueError("Power mode must be 0-3")
-        try:
-            self._write_power_mode(mode)
-            self._power_mode = mode
-            return True
-        except OSError as e:
-            log.error("Setting power mode failed: %s", e)
-            return False
-
-    def get_power_mode(self) -> int:
-        """Get current power mode"""
-        return self._power_mode
-    
-    # ---- writers ----
     def _write_mute(self) -> bool:
         try:
             if self._muted:
@@ -264,7 +241,7 @@ class TAS2780:
             log.error("Writing volume failed: %s", e)
             return False
     
-    def _write_power_mode(self, mode: int) -> None:
+    def _write_power_mode(self, mode: PwrMode) -> None:
         """
         PWR_MODE0: PVDD is the only supply used to deliver output power. VBAT external
         PWR_MODE1: VBAT1S is used to deliver output power based on level and headroom configured.

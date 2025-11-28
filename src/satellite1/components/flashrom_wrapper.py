@@ -1,4 +1,3 @@
-# satellite1/tools/flashrom_wrapper.py
 from __future__ import annotations
 import os, shlex, shutil, subprocess, logging, re, tempfile
 from dataclasses import dataclass, field
