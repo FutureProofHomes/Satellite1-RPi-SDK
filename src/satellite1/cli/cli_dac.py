@@ -53,7 +53,6 @@ def _handle(args: argparse.Namespace) -> int:
         active_dac = line_out_dac
     elif dac_key == "speaker":
         active_dac = speaker_dac
-        speaker_dac.dump_curr_state()
     else:
         raise SystemExit(f"Unsupported DAC selector: {dac_key!r}")
     
