@@ -121,8 +121,8 @@ class TAS2780:
             for reg, flag_map in reg_errs_map.items():
                 reg_val = bus.read_byte(reg)
                 errors.extend(
-                    [ err 
-                        for flag, err in flag_map.items 
+                    [ e 
+                        for flag, e in flag_map.items() 
                         if flag & reg_val
                     ]
                 )
