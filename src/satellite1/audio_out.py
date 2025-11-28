@@ -76,7 +76,7 @@ class SpeakerDac(TAS2780):
             channel=config.channel,
             amp_level=config.amp_level
         )
-        return TAS2780(tas_config)
+        return cls(tas_config)
 
     def report_status(self):
         print( "Speaker DAC (TAS2780):")
