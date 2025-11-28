@@ -41,9 +41,11 @@ print-meta:
 	@echo "GIT_NAME=$(GIT_NAME)"
 	@echo "GIT_EMAIL=$(GIT_EMAIL)"
 
-.PHONY: all shell docker-image clean
+.PHONY: all shell deb docker-image clean
 
-all: $(DEB_TARGET)
+all: $(DEB_TARGET) build
+
+deb: $(DEB_TARGET)
 
 docker-image:
 	$(MAKE) -C ./docker deb-image
