@@ -45,9 +45,8 @@ class TAS2780:
         self.set_power_mode(self._power_mode)
         self._write_amp_level()
         self._write_channel()
-        
-        # Start muted
-        self.set_mute_on()
+        self._write_mute()
+        self._write_volume()
 
         if self.enabled:
             self.activate()
