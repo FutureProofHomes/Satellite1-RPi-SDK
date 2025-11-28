@@ -1,14 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools-scm[simple]>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "satellite1"
-version = "0.1.3"
+name = "satellite1-rpi"
 description = "Control library for the Satellite1 Raspberry Pi HAT"
 readme = "README.md"
 authors = [{ name = "Mischa Siekmann", email = "mischa.siekmann@futureproofhomes.net" }]
 license = { file = "LICENSE" }
+dynamic = ["version"]
 
 dependencies = [
     "pydantic>=2.7",
@@ -35,6 +35,10 @@ include = ["satellite1", "satellite1.*"]
 sat1 = "satellite1.cli.cli_sat1:main"
 sat1-dac = "satellite1.cli.cli_audio_out:main"
 sat1-xmos = "satellite1.cli.cli_xmos:xmos_main"
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
 
 [tool.pytest.ini_options]
 minversion = "6.0"

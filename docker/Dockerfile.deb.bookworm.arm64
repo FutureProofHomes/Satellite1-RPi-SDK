@@ -13,6 +13,7 @@ RUN dpkg --add-architecture arm64 && apt-get update && \
       libc6-dev:arm64 libstdc++-12-dev:arm64 libusb-1.0-0-dev:arm64 \
       # packaging stack
       devscripts debhelper dh-python dpkg-dev fakeroot \
+      git-buildpackage \
       python3-venv python3-pip python3-build \
       python3-installer python3-setuptools python3-wheel \
       python3-all \
