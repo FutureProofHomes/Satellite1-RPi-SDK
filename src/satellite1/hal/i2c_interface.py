@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from smbus2 import SMBus
 from typing import Self
 
-class I2cInterfaceConfig(BaseModel):
+class I2cDeviceConfig(BaseModel):
     i2c_bus: int = 1
     i2c_addr: int
 
@@ -13,7 +13,7 @@ class I2cInterface:
         self._bus: SMBus | None = None
     
     @classmethod
-    def from_config(cls, config: I2cInterfaceConfig) -> Self:
+    def from_config(cls, config: I2cDeviceConfig) -> Self:
         return cls(config.i2c_bus, config.i2c_addr)
 
     def open(self) -> None:

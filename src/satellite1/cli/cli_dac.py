@@ -6,8 +6,14 @@ import logging
 from .pydantic_argparse import add_pydantic_overrides, collect_overrides
 from ..config_load import load_from_toml
 
-from ..audio_out import LineOutDacConfig, SpeakerDacConfig, get_lineout_dac, get_power_dac, get_active_dac_id
-
+from ..audio_out import (
+    LineOutDacConfig, 
+    SpeakerDacConfig, 
+    get_active_dac_id,
+    get_lineout_dac, 
+    get_speaker_dac, 
+    setup_dacs
+)
 log = logging.getLogger(__name__)
 
 LINE_OUT_PREFIX = "line-out"
@@ -33,7 +39,7 @@ def _handle(args: argparse.Namespace) -> int:
     log.debug("Effective SpkDac config: %s", cfg_spk.model_dump())
 
     line_out_dac = get_lineout_dac(cfg_line)
-    speaker_dac = get_power_dac(cfg_spk)
+    speaker_dac = get_speaker_dac(cfg_spk)
     
     dac_key: str = args.dac
     if dac_key == 'auto':
@@ -73,14 +79,20 @@ def _handle(args: argparse.Namespace) -> int:
         log.info("Muted: %s", state)
         print(state)
         return 0
+    
+    if args.cmd == "status":
+        print(line_out_dac.report_status())
+        print(speaker_dac.report_status())
+        return 0
+    
     if args.cmd == "setup":
-        ok = active_dac.setup()
+        ok = setup_dacs(line_out_dac, speaker_dac)
         log.info("DAC setup: %s", ok)
         print(ok)
         return 0
     
     if args.cmd == "plugged-in":
-        plugged = line_out_dac.is_plugged_in()
+        plugged = line_out_dac.plugged_in
         log.info("Jack plugged in: %s", plugged)
         print(plugged)
         return 0
@@ -103,6 +115,7 @@ def attach_dac_parser(parser: argparse.ArgumentParser ) -> None:
     sp.add_parser("unmute", help="Unmute line-out")
     sp.add_parser("setup", help="Initialise the DAC")
     sp.add_parser("plugged-in", help="Check if jack is plugged in")
+    sp.add_parser("status", help="Get some current state information")
     
     parser.set_defaults(_handler=_handle)
 

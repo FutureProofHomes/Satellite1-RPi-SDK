@@ -15,10 +15,11 @@ class DAC(Protocol):
     
     def is_muted(self) -> bool:
         ...
-    
-    def volume(self) -> float:
+        
+    @property
+    def enabled(self) -> bool:
         ...
     
     @property
-    def active(self) -> bool:
+    def volume(self) -> float:
         ...

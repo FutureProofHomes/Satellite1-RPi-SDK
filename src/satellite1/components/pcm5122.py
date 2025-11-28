@@ -1,14 +1,11 @@
-# pcm5122.py
-# Requires: pip install smbus2
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Literal
 from pydantic import BaseModel, Field
 
-from ..hal.i2c_interface import I2cInterface, I2cInterfaceConfig
+from ..hal.i2c_interface import I2cInterface
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +111,17 @@ class PCM5122:
 
         # Start muted
         self.set_mute_on()
+        
+        # Setup GPIOs
+        for pin_cfg in self.cfg.gpio:
+            self.gpio_setup(
+                pin=pin_cfg.pin, 
+                mode=pin_cfg.mode,
+                inverted=pin_cfg.inverted
+            )
+            if pin_cfg.mode == 'out' and not pin_cfg.value is None:
+                self.gpio_write(pin_cfg.pin, pin_cfg.value)
+        
         log.info("PCM5122 setup complete (muted).")
 
     def dump_config(self) -> dict[str, int]:
@@ -153,6 +161,7 @@ class PCM5122:
         self._volume = vol
         return self._write_volume()
 
+    @property
     def volume(self) -> float:
         return self._volume
 
@@ -187,26 +196,22 @@ class PCM5122:
         """Configure a PCM5122 GPIO pin as input or output; optionally inverted."""
         self._check_pin(pin)
         bit = 1 << (pin - 1)
-        with self._i2c as bus:
+        with self._i2c as bus:            
             bus.write_byte(self.REG_PAGE_SELECT, 0x00)
-
-        # Direction: 0=input, 1=output
-        if mode == 'in':
-            self._update_bits(self.REG_GPIO_DIR, bit, 0)
-        elif mode == 'out':
-            self._update_bits(self.REG_GPIO_DIR, bit, bit)
-            # Set function to "GPIO" (datasheet: write 0x02) for outputs
-            with self._i2c as bus:
-                bus.write_byte(self.REG_GPIO_FUNC0 + (pin - 1), 0x02)
-        else:
-            raise ValueError("mode must be 'in' or 'out'")
-
-        # Inversion
-        if inverted:
-            self._update_bits(self.REG_GPIO_INV, bit, bit)
-        else:
-            self._update_bits(self.REG_GPIO_INV, bit, 0)
-
+            # set pin to be used as GPIO
+            bus.write_byte(self.REG_GPIO_FUNC0 + (pin - 1), 0x02)
+            # set direction
+            dir_val = bus.read_byte(self.REG_GPIO_DIR)
+            dir_val &= ~bit
+            if mode == 'out':
+                dir_val |= bit
+            bus.write_byte(self.REG_GPIO_DIR, dir_val)
+            # set / clear inversion bit
+            inv_val = bus.read_byte(self.REG_GPIO_INV)
+            inv_val &= ~bit
+            if inverted:
+                inv_val |= bit
+            bus.write_byte(self.REG_GPIO_INV, inv_val)
         self._gpio_cfg[pin] = (mode, inverted)
 
     def gpio_write(self, pin: int, value: bool) -> None:
@@ -218,8 +223,10 @@ class PCM5122:
             log.warning("gpio_write on pin %d configured as '%s'", pin, mode)
         bit = 1 << (pin - 1)
         with self._i2c as bus:
-            bus.write_byte(self.REG_PAGE_SELECT, 0x00)
-        self._update_bits(self.REG_GPIO_OUT, bit, bit if value else 0)
+            val = bus.read_byte(self.REG_GPIO_OUT)
+            val &= ~bit
+            val |= bit if value else 0
+            bus.write_byte(self.REG_GPIO_OUT, val)
 
     def gpio_read(self, pin: int) -> bool:
         """Read an input pin (returns post-inversion state)."""
@@ -230,14 +237,6 @@ class PCM5122:
             bus.write_byte(self.REG_PAGE_SELECT, 0x00)
             raw = bool(bus.read_byte(self.REG_GPIO_IN) & bit)
         return (not raw) if inverted else raw    
-
-    def _update_bits(self, reg: int, mask: int, set_bits: int) -> int:
-        with self._i2c as bus:
-            v = bus.read_byte(reg)
-            nv = (v & ~mask) | (set_bits & mask)
-            if nv != v:
-                bus.write_byte(reg, nv)
-            return nv
 
     def _check_pin(self, pin: int) -> None:
         if not (self._GPIO_MIN_PIN <= pin <= self._GPIO_MAX_PIN):
