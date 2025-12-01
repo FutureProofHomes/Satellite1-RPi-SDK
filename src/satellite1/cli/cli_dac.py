@@ -45,8 +45,15 @@ def _handle(args: argparse.Namespace) -> int:
     if dac_key == 'auto':
         dac_key = get_active_dac_id(line_out_dac, speaker_dac)
     
+    if args.cmd == "setup":
+        ok = setup_dacs(line_out_dac, speaker_dac)
+        log.info("DAC setup: %s", ok)
+        print(ok)
+        return 0
+    
     if dac_key is None:
         raise SystemExit(f"Both DACs are disabled. Line-out plugged in?" )
+    
     
     active_dac: DAC 
     if dac_key == "line-out":
@@ -83,12 +90,6 @@ def _handle(args: argparse.Namespace) -> int:
     if args.cmd == "status":
         print(line_out_dac.report_status())
         print(speaker_dac.report_status())
-        return 0
-    
-    if args.cmd == "setup":
-        ok = setup_dacs(line_out_dac, speaker_dac)
-        log.info("DAC setup: %s", ok)
-        print(ok)
         return 0
     
     if args.cmd == "plugged-in":
