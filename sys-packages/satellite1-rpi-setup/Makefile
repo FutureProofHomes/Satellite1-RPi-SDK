@@ -8,7 +8,7 @@ ACTIVATOR_VERSION  ?= 1.0
 ARCH               ?= arm64
 
 # Kernel we want to activate (single source of truth)
-KERNEL_RELEASE     ?= 6.12.58-v8-fusb302-v8
+KERNEL_RELEASE     ?= 6.12.58-fusb302-rpi-v8
 KERNEL_PKG         ?= linux-image-$(KERNEL_RELEASE)
 
 # Output dir for the built .deb (inside this package dir)
@@ -24,7 +24,9 @@ TARGET_KERNEL_DST  := /usr/share/$(PACKAGE_NAME)/target-kernel
 
 
 # Source locations (things you edit by hand)
-SRC_DEBIAN_DIR     := $(PWD)/debian
+THIS_MAKEFILE      := $(abspath $(lastword $(MAKEFILE_LIST)))
+MAKE_DIR           := $(dir $(THIS_MAKEFILE))
+SRC_DEBIAN_DIR     := $(MAKE_DIR)/debian
 SRC_CONTROL_IN     := $(SRC_DEBIAN_DIR)/control.in
 SRC_POSTINST       := $(SRC_DEBIAN_DIR)/postinst.in
 SRC_INSTALL_FILE   := $(SRC_DEBIAN_DIR)/install.in

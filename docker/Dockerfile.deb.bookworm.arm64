@@ -17,6 +17,7 @@ RUN dpkg --add-architecture arm64 && apt-get update && \
       python3-venv python3-pip python3-build \
       python3-installer python3-setuptools python3-wheel \
       python3-all \
+      vim \
       # dtc for building .dtbo from .dts
       device-tree-compiler \
       # (optional) lintian for QA

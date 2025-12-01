@@ -29,6 +29,9 @@ RUN git clone --depth=1 -b rpi-6.12.y https://github.com/raspberrypi/linux.git r
 
 WORKDIR /usr/src/rpi-linux
 
+COPY builddeb.patch /usr/src/rpi-linux
+RUN patch -p1 < builddeb.patch
+
 # Add a helper script that will build the kernel + .deb packages
 COPY build-rpi-kernel-deb.sh /usr/local/bin/build-rpi-kernel-deb.sh
 RUN chmod +x /usr/local/bin/build-rpi-kernel-deb.sh

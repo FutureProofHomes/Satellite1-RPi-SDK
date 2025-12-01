@@ -1,22 +1,23 @@
 # Makefile for building Raspberry Pi kernel .deb packages via Docker
 
 # ----- Configuration -------------------------------------------------------
-
 DOCKER        ?= docker
 IMAGE_NAME    ?= rpi-kernel-builder
 PLATFORM      ?= linux/arm64
 
 # Path to kernel config on the host (override with: make deb CONFIG=/path/to/config)
-CONFIG        ?= $(PWD)/config/kernel.config
+THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
+MAKE_DIR      := $(dir $(THIS_MAKEFILE))
+CONFIG        ?= $(MAKE_DIR)/config/kernel.config
 
 # Where to put the resulting .deb files
 OUT_DIR       ?= $(PWD)/out
 
 # Extra env you might want to pass into the build script
-# e.g.: make deb LOCALVERSION=-fusb302 KDEB_PKGVERSION=2fusb302
-LOCALVERSION  ?= -fusb302-v8
-KDEB_PKGVERSION ?= 1fusb302
-EXTRAVERSION ?= -v8
+# e.g.: make deb LOCALVERSION=-fusb302 KDEB_PKGVERSION=2
+LOCALVERSION    ?= -fusb302-rpi-v8
+EXTRAVERSION    ?= ""
+KDEB_PKGVERSION ?= 2
 # ----- Targets -------------------------------------------------------------
 
 .PHONY: help image deb shell clean-out clean-all
@@ -58,6 +59,7 @@ deb: image
 		-v "$(OUT_DIR)":/out \
 		$(IMAGE_NAME) \
 		/usr/local/bin/build-rpi-kernel-deb.sh
+
 
 # Drop into a shell inside the build container (for debugging / manual makes)
 shell: image

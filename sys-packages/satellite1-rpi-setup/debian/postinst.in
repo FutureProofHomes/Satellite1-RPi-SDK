@@ -77,51 +77,6 @@ case "$1" in
             echo "satellite1-rpi-setup: Backed up config.txt to ${CFG}.satellite1.bak"
         fi
 
-        # --- Copy kernel image + initrd into BOOTDIR ---
-        if [ -f "/boot/${KERNEL_IMG}" ]; then
-            cp "/boot/${KERNEL_IMG}" "${BOOTDIR}/${FW_KERNEL_NAME}"
-            echo "satellite1-rpi-setup: Installed kernel image to ${BOOTDIR}/${FW_KERNEL_NAME}"
-        else
-            echo "satellite1-rpi-setup: WARNING: /boot/${KERNEL_IMG} not found" >&2
-        fi
-
-        if [ -f "/boot/${INITRD_IMG}" ]; then
-            cp "/boot/${INITRD_IMG}" "${BOOTDIR}/${FW_INITRD_NAME}"
-            echo "satellite1-rpi-setup: Installed initrd to ${BOOTDIR}/${FW_INITRD_NAME}"
-        else
-            echo "satellite1-rpi-setup: WARNING: /boot/${INITRD_IMG} not found" >&2
-        fi
-
-        # --- Sync DTBs + standard overlays from linux-image package ---
-        if [ -d "${LINUX_IMAGE_DIR}" ]; then
-            mkdir -p "${BOOT_OVL}"
-
-            if [ -d "${LINUX_IMAGE_DIR}/broadcom" ]; then
-                cp -p "${LINUX_IMAGE_DIR}/broadcom/"*.dtb "${BOOTDIR}/" 2>/dev/null || true
-                echo "satellite1-rpi-setup: Copied board DTBs from ${LINUX_IMAGE_DIR}/broadcom/ to ${BOOTDIR}/"
-            fi
-
-            if [ -d "${LINUX_IMAGE_DIR}/overlays" ]; then
-                cp -p "${LINUX_IMAGE_DIR}/overlays/"* "${BOOT_OVL}/" 2>/dev/null || true
-                echo "satellite1-rpi-setup: Copied overlays from ${LINUX_IMAGE_DIR}/overlays/ to ${BOOT_OVL}/"
-            fi
-        else
-            echo "satellite1-rpi-setup: WARNING: ${LINUX_IMAGE_DIR} not found; cannot sync DTBs/overlays" >&2
-        fi
-
-        # --- Ensure firmware boots our kernel + initrd ---
-        if grep -q '^kernel=' "$CFG"; then
-            sed -i "s|^kernel=.*$|kernel=${FW_KERNEL_NAME}|" "$CFG"
-        else
-            echo "kernel=${FW_KERNEL_NAME}" >> "$CFG"
-        fi
-
-        if grep -q '^initramfs ' "$CFG"; then
-            sed -i "s|^initramfs .*|initramfs ${FW_INITRD_NAME} followkernel|" "$CFG"
-        else
-            echo "initramfs ${FW_INITRD_NAME} followkernel" >> "$CFG"
-        fi
-
         if [ -d "${SHARE_OVL}" ]; then
             cp -p "${SHARE_OVL}/"*.dtbo "${BOOT_OVL}/" 2>/dev/null || true
             echo "satellite1-rpi-setup: Copied custom overlays from ${SHARE_OVL} to ${BOOT_OVL}"
@@ -143,10 +98,13 @@ case "$1" in
         # Optional sensor overlay
         ensure_overlay_line "i2c-sensor,addr=0x38,chip=aht20"
 
+        # Auto load i2c-dev module
+        echo i2c-dev | sudo tee /etc/modules-load.d/i2c.conf
+
         # Avoid card conflicts with legacy analog audio
         sed -i -E 's/^[[:space:]]*dtparam=audio=on[[:space:]]*$/#dtparam=audio=on/' "$CFG" || true
 
-        echo "satellite1-rpi-setup: Kernel + DTBs + overlays configured. Reboot to apply."
+        echo "satellite1-rpi-setup: overlays configured. Reboot to apply."
         ;;
 esac
 

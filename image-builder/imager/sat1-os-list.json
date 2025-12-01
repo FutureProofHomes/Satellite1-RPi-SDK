@@ -1,0 +1,36 @@
+{
+  "version": 4,
+  "imager": {
+    "devices": [
+      {
+        "name": "Satellite1 + Raspberry Pi Zero 2 W",
+        "icon": "https://futureproofhomes.net/cdn/shop/files/square_transparent_black_logo_300x300_5f243ad3-26e3-4316-93ea-707065243111.png?v=1718239651&width=140",
+        "description": "Satellite1 HAT + Raspberry Pi Zero 2 W",
+        "tags": [
+          "pi3-64bit"
+        ]
+      }
+    ]
+  },
+  "os_list": [
+    {
+      "name": "Satellite1 RPi (Bookworm 64bit)",
+      "description": "A customized operating system for Raspberry Pi",
+      "icon": "https://futureproofhomes.net/cdn/shop/files/square_transparent_black_logo_300x300_5f243ad3-26e3-4316-93ea-707065243111.png?v=1718239651&width=140",
+      "url": "http://localhost:8080/2025-12-01-satellite1-rpi.img",
+      "extract_size": 4076863488,
+      "extract_sha256": "30844dee5aeb6f56931be66017ac6eacacff0ef06408f1ff0cc16631a98d4899",
+      "image_download_size": 4076863488,
+      "release_date": "2025-12-01",
+      "devices": [
+        "pi3-64bit"
+      ],
+      "init_format": "systemd",
+      "architecture": "arm64",
+      "capabilities": [
+        "i2c",
+        "spi"
+      ]
+    }
+  ]
+}

@@ -10,13 +10,14 @@ DOCKER_IMAGE  ?= satellite1-deb-builder
 OUT_DIR       ?= ${PWD}/build-assets
 DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(SDK_VERSION)_$(ARCH).deb
 
-BUILD_DIR     ?= ${PWD}/build
+BUILD_DIR     ?= ${PWD}/build/sdk
 DEBIAN_DIR    := ${BUILD_DIR}/debian
 
 LOCAL_VENV    ?= ${PWD}/.venv
 
 # --- Metadata ---
 PYPROJ_VERSION := $(shell python -m setuptools_scm)
+PYPROJ_RELEASE := $(shell python -m setuptools_scm --strip-dev)
 
 GIT_NAME := $(shell git config user.name)
 GIT_EMAIL := $(shell git config user.email)
@@ -28,7 +29,7 @@ ifndef ALLOW_DIRTY
 	@echo "Checking for uncomitted changes..."
 	@if ! git diff --quiet --ignore-submodules --; then \
 	  echo "ERROR: Working tree is dirty. Commit or stash changes first."; \
-	  echo "       (override with ALLOW_DIRTY)"; \
+	  echo "       (override with ALLOW_DIRTY=1)"; \
 	  exit 1; \
 	fi
 else
@@ -57,15 +58,13 @@ build: verify-git-is-clean | $(OUT_DIR)
 		$(DOCKER_IMAGE) \
 		/usr/bin/python3 -m build --outdir /out
 
-
-
 $(OUT_DIR):
 	@echo "Creating $(OUT_DIR)"
 	mkdir -p "$(OUT_DIR)"
 	echo "*" > "$(OUT_DIR)/.gitignore"
 
 # build the wheel file and wrap it into a .deb package
-$(DEB_TARGET): docker-image verify-git-is-clean | $(DEBIAN_DIR) $(OUT_DIR)
+$(DEB_TARGET): docker-image verify-git-is-clean $(DEBIAN_DIR) | $(OUT_DIR)
 	mkdir -p "$(OUT_DIR)"
 	$(DOCKER) run --rm --platform=$(PLATFORM) \
 	  -v "$(BUILD_DIR)":/work/src \
@@ -73,7 +72,9 @@ $(DEB_TARGET): docker-image verify-git-is-clean | $(DEBIAN_DIR) $(OUT_DIR)
 	  -v "${PWD}":/project \
 	  -w /work/src \
 	  $(DOCKER_IMAGE) \
-	  bash -lc 'dpkg-buildpackage -b -us -uc && cp ../*.deb /out'
+	  bash -lc ' \
+	  	dpkg-buildpackage -b -us -uc && \
+		cp ../*.deb debian/.wheelhouse/satellite1*.whl /out'
 	@echo
 	@echo "Built package: $(DEB_TARGET)"
 
@@ -85,12 +86,20 @@ $(DEBIAN_DIR):
 	cp -r "etc" "$(BUILD_DIR)"
 
 
+
 $(LOCAL_VENV):
 	python3 -m venv $(LOCAL_VENV)
 	$(LOCAL_VENV)/bin/pip install --upgrade pip
 	$(LOCAL_VENV)/bin/pip install -e .
 
 
+.PHONY: kernel-pkg
+kernel-pkg: $(OUR_DIR)
+	$(MAKE) -C ./sys-packages/rpi-kernel-fusb302 deb OUT_DIR="$(OUT_DIR)"
+
+.PHONY: rpi-setup-deb
+rpi-setup-deb: $(OUT_DIR)
+	$(MAKE) -C ./sys-packages/satellite1-rpi-setup deb OUT_DIR="$(OUT_DIR)"
 
 clean:
 	rm -rf "$(BUILD_DIR)" "$(DEB_TARGET)"
@@ -98,6 +107,10 @@ clean:
 shell: docker-image
 	$(DOCKER) run --rm -it \
 		-v "${PWD}":/work \
+		-e "EDITOR=/usr/bin/vim" \
+		-e "DEBEMAIL=$(GIT_EMAIL)" \
+		-e "DEBFULLNAME=$(GIT_NAME)" \
+		-e "PRJ_VER=$(PYPROJ_RELEASE)" \
 		$(DOCKER_IMAGE) \
 		/bin/bash
 
