@@ -1,3 +1,9 @@
+satellite1-rpi-sdk (0.1.5) bookworm; urgency=medium
+
+  * dac setup fix 
+
+ -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Mon, 01 Dec 2025 21:48:08 +0000
+
 satellite1-rpi-sdk (0.1.4-1) bookworm; urgency=medium
 
   * TAS2780 support.
