@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 from typing import Any, TYPE_CHECKING, TypeAlias, Literal
 import logging
+import sys
 
 from .pydantic_argparse import add_pydantic_overrides, collect_overrides
 from ..config_load import load_from_toml
@@ -154,6 +155,13 @@ def main(argv: list[str] | None = None) -> int:
     log.debug("Args: %s", vars(args))
     return int(args._handler(args) or 0)
 
+def speaker() -> int:
+    default_args = ["--dac=speaker"]
+    return main(default_args + sys.argv[1:])
+
+def lineout() -> int:
+    default_args = ["--dac=line-out"]
+    return main(default_args + sys.argv[1:])
 
 
 if __name__ == "__main__":

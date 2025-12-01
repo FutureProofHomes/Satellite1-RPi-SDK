@@ -33,7 +33,9 @@ include = ["satellite1", "satellite1.*"]
 
 [project.scripts]
 sat1 = "satellite1.cli.cli_sat1:main"
-sat1-dac = "satellite1.cli.cli_audio_out:main"
+sat1-dac = "satellite1.cli.cli_dac:main"
+sat1-speaker = "satellite1.cli.cli_dac:speaker"
+sat1-lineout = "satellite1.cli.cli_dac:lineout"
 sat1-xmos = "satellite1.cli.cli_xmos:xmos_main"
 
 [tool.setuptools_scm]
