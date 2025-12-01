@@ -62,7 +62,7 @@ ensure_wrapper() {
         MODULE="satellite1.cli.cli_sat1"
         ;;
       sat1-line-out)
-        MODULE="satellite1.cli.cli_line_out_dac"
+        MODULE="satellite1.cli.cli_dac"
         ;;
       sat1-xmos)
         MODULE="satellite1.cli.cli_xmos"
@@ -85,8 +85,5 @@ for w in $WRAPPERS; do
   ensure_wrapper "$w"
 done
 hash -r 2>/dev/null || true
-
-
-
 
 exit 0
