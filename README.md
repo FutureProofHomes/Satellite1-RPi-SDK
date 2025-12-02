@@ -1,278 +1,177 @@
 # Satellite1-RPi
 
-Control software for the **Satellite1 Raspberry Pi HAT**, including:
+**Raspberry Pi SDK for the Satellite1-HAT**
 
-- **Line‑out DAC (PCM5122)**: volume/mute and jack‑sense
-- **XMOS controller (SPI)**: detection, basic reset, and flashing helpers (via `flashrom`)
-- **Config** via TOML (Pydantic models + CLI overrides)
-- **CLIs** (`sat1`, `sat1-line-out`, `sat1-xmos`) with `-v/--verbose`
-- A Debian package that ships an **offline wheelhouse** and installs into a dedicated **virtualenv** at `/opt/satellite1/venv`
+Components:
+- `satellite1-rpi` Python SDK library
+- `satellite1-rpi-setup` required pi setup wrapped into a debian package 
+- `rpi-kernel-fusb302` custom kernel with fusb302 support
+- `image-builder` builds images ready to flash to an sd-card
 
-> Target: Raspberry Pi OS (Bookworm), Python 3.11.
-
-
+> Target: Raspberry Pi Zero W2, Raspberry Pi OS (Bookworm)
 ---
 
 ## Table of contents
 
 - [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [CLI usage](#cli-usage)
-  - [`sat1-line-out`](#sat1-line-out)
-  - [`sat1`](#sat1)
-  - [`sat1-xmos`](#sat1-xmos)
-- [Service](#service)
-- [Build the Debian package](#build-the-debian-package)
-- [Install the .deb on the Pi](#install-the-deb-on-the-pi)
-- [Development & tests](#development--tests)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
+- [RPi - Setup](#rpi---setup)
+- [CLI - Usage](#cli---usage) 
+- [Development](#development)
 
 
 ---
 
 ## Quick start
+### Flash Satellite1-SDK-Image
+The most convenient way to setup your RPi is to flash the Satellite1-SDK-Image which gives you a Rapsberry Pi OS versions already prepared for the Satellite1-HAT.  
 
-1. **Enable I2C/SPI** and add your user to device groups (reboot afterwards):
+1. Install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+2. Set `Content Repository` in `APP OPTIONS` to ...
+3. Follow wizard
 
-   ```bash
-   sudo raspi-config nonint do_i2c 0
-   sudo raspi-config nonint do_spi 0
-   sudo usermod -aG i2c,spi,gpio $USER
-   ```
+## RPi - Setup
+### Kernel with USB-C PD Support
+The default Kernel of Raspberry Pi Os doesn't support usb-c power delivery.
 
-2. **Install** the prebuilt `.deb` (see [Install the .deb on the Pi](#install-the-deb-on-the-pi)).  
-   The post‑install script will:
-   - copy an **offline wheelhouse** to `/usr/share/satellite1/wheels/`
-   - create `/opt/satellite1/venv` and install from those wheels (offline)
-   - install a default config at `/etc/satellite1.conf`
-   - install CLI wrappers in `/usr/bin/`
-   - install an optional systemd unit (disabled by default)
-
-3. **Try the DAC CLI**:
-
-   ```bash
-   sat1-line-out volume           # print current volume (0..1)
-   sat1-line-out set-volume 0.75  # set volume
-   sat1-line-out mute             # mute
-   sat1-line-out unmute           # unmute
-   sat1-line-out plugged-in       # jack sensor status
-   sat1-line-out -v volume        # verbose logging
-   ```
-
-> If the wrapper isn’t present for some reason, you can run via the venv:
->
-> `sudo /opt/satellite1/venv/bin/python -m satellite1.cli.cli_line_out_dac volume`
-
-
----
-
-## Configuration
-
-Configuration is **TOML**. Default search order:
-
-1. `/etc/satellite1.conf`
-2. `/etc/satellite1/satellite1.conf`
-3. `~/.config/satellite1/config.toml`
-
-All CLIs accept `--config` to point to a specific file. CLI flags **override** file values at runtime.
-
-**Example: `/etc/satellite1.conf`**
-
-```toml
-[line_out_dac]
-# Enable the DAC at startup
-enabled = true
-
-# Default volume (0.0 .. 1.0)
-startup_volume = 0.50
-
-# Start muted?
-startup_muted = false
+`linux-image-6.12.58-fusb302-rpi-v8_2_arm64.deb` contains the Raspberry Pi Os Kernel with these additional settings: 
+```
+CONFIG_TYPEC=m
+CONFIG_TYPEC_TCPM=m
+CONFIG_TYPEC_TCPCI=m
+CONFIG_TYPEC_FUSB302=m
+```
+```bash
+sudo dpkg -i linux-image-6.12.58-fusb302-rpi-v8_2_arm64.deb
 ```
 
-- `JACK_SENSOR_PIN` is a `ClassVar` and **not user‑configurable**.
-- Example override:
-
-  ```bash
-  # Use /etc/satellite1.conf, but override just the startup volume for this run:
-  sat1-line-out --config /etc/satellite1.conf --startup-volume 0.9 set-volume 0.3
-  ```
-
-
----
-
-## CLI usage
-
-### `sat1-line-out`
-
-Line‑out DAC controls.
-
-```
-usage: sat1-line-out [-h] [--config PATH] [-v|-vv]
-                     [--enabled | --no-enabled]
-                     [--startup-volume FLOAT]
-                     [--startup-muted | --no-startup-muted]
-                     {volume,set-volume,mute,unmute,plugged-in,setup} ...
-```
-
-Examples:
+### Device Tree Overlays and Modules Setup
 
 ```bash
-sat1-line-out volume
-sat1-line-out set-volume 0.42
-sat1-line-out mute
-sat1-line-out unmute
-sat1-line-out setup   # idempotent hardware init
+sudo dpkg -i satellite1-rpi-setup_1.0-1_arm64.deb
 ```
+Installs:
+- fusb302b overlays (usb-c power delivery)
+- satellite1-i2s overlays (audio device)
+- etc/alsa/conf.d/50-satellite1.conf (alsa configuration)
+- /etc/modules-load.d/i2c.conf (load i2c-dev module on startup)
+- config.txt: spi on, i2s on, i2c_arm on, i2c_arm_baudrate 100000
+- i2c-sensor: "i2c-sensor,addr=0x38,chip=aht20" 
 
-### `sat1`
+### Python Satellite1-Rpi SDK 
+```bash
+sudo dpkg -i satellite1-rpi-sdk_0.1.5_arm64.deb
+```
+- creates virtual env at /opt/satellite1/venv
+- installs satellite1-rpi python lib into that venv
+- creates /usr/bin/sat1 link
+- installs satellite1-init.service (initilizes the DACs at startup)
 
-Aggregates component CLIs and provides a small `init` helper.
+## CLI - Usage
+The `sat1` command-line tool provides control over all Satellite1 HAT components, including:
+
+- The DAC (audio output)
+- The XMOS audio processor
+- USB-C Power Delivery status
+
+A typical invocation looks like:
 
 ```bash
-sat1 dac volume
-sat1 dac set-volume 0.6
+sat1 [global options] <component> <command> [options...]
 ```
 
-- `sat1` forwards `--config` to subcommands and supports `-v/--verbose`.
-
-### `sat1-xmos`
-
-Early XMOS helpers (SPI + flashrom wrapper).
+### Global Usage
 
 ```bash
-
-sat1-xmos -vv flash-firmware satellite1_firmware_fixed_delay.factory.bin
+sat1 [-h] [--config CONFIG] [-v] {dac,xmos,pd} ...
 ```
 
+#### Components
 
----
+| Component | Description |
+|----------|-------------|
+| `dac`    | DAC audio controls |
+| `xmos`   | XMOS interface and firmware controls |
+| `pd`     | Show current USB-C Power Delivery contract |
 
-## Service
+#### Global Options
 
-The package ships an optional systemd unit `satellite1-init.service` (disabled by default).
+| Option | Description |
+|--------|-------------|
+| `-h`, `--help` | Show help and exit |
+| `--config FILE` | Custom TOML config file (default: `/etc/satellite1.conf`) |
+| `-v`, `--verbose` | Increase verbosity (`-v`, `-vv`) |
+
+### DAC Controls
 
 ```bash
-# Enable at boot and start now:
-sudo systemctl enable --now satellite1-init.service
-
-# Logs:
-journalctl -u satellite1-init.service -e
-
-# Disable:
-sudo systemctl disable --now satellite1-init.service
+sat1 dac [options] {volume,set-volume,mute,unmute,setup,plugged-in,status} ...
 ```
 
+#### DAC Commands
 
----
+| Command | Description |
+|---------|-------------|
+| `volume`       | Read current volume (0..1) |
+| `set-volume`   | Set output volume (0..1) |
+| `mute`         | Mute the line-out |
+| `unmute`       | Unmute the line-out |
+| `setup`        | Initialise the DAC |
+| `plugged-in`   | Check whether headphones are plugged in |
+| `status`       | Show current DAC state |
 
-## Build the Debian package
-Cross-build:
-```bash
-tools\build_deb.sh
-```
-
-
-Build on a Debian/Ubuntu dev machine.
-
-**Prerequisites**
+#### DAC Selection
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y \
-  build-essential devscripts debhelper-compat dh-python dh-sequence-python3 \
-  fakeroot python3-venv python3-pip \
-  device-tree-compiler
+--dac {auto,line-out,speaker}
 ```
 
-**Build**
+#### Line-Out Overrides
 
-From the repo root:
+| Option | Description |
+|--------|-------------|
+| `--line-out-enabled` / `--no-line-out-enabled` | Enable/disable line-out |
+| `--line-out-startup-volume <0..1>` | Initial output volume |
+| `--line-out-startup-muted` / `--no-line-out-startup-muted` | Mute on startup |
+| `--line-out-restore-on-startup` / `--no-line-out-restore-on-startup` | Restore previous state |
+
+#### Speaker Overrides
+
+| Option | Description |
+|--------|-------------|
+| `--speaker-enabled` / `--no-speaker-enabled` | Enable/disable speaker output |
+| `--speaker-startup-volume <0..1>` | Initial speaker volume |
+| `--speaker-startup-muted` / `--no-speaker-startup-muted` | Mute on startup |
+| `--speaker-restore-on-startup` / `--no-speaker-restore-on-startup` | Restore previous state |
+| `--speaker-channel {left,right,dwn_mix}` | Choose audio routing |
+| `--speaker-amp-level <int>` | Amplifier gain |
+
+### XMOS Controls
 
 ```bash
-# Build source + binary without signing
-debuild -b -us -uc
-# or
-dpkg-buildpackage -b -uc -us
+sat1 xmos {setup,read-firmware,read-status,reset,enable-flashing,disable-flashing,run-spi-test,set-mic-output,flash-firmware}
 ```
 
-The build will:
-- compile overlays in `overlays/` to `*.dtbo`
-- create a **wheelhouse** with **all dependencies** under `debian/.wheelhouse/`
-- produce the `.deb` in the parent directory (e.g. `../satellite1-rpi_0.1.1-1_arm64.deb`)
+#### XMOS Commands
 
+| Command | Description |
+|---------|-------------|
+| `setup`             | Initialise SPI & GPIO for XMOS |
+| `read-firmware`     | Read XMOS firmware version |
+| `read-status`       | Read status register |
+| `reset`             | Toggle the XMOS reset pin |
+| `enable-flashing`   | Enter XMOS flashing/reset mode |
+| `disable-flashing`  | Exit flashing/reset mode |
+| `run-spi-test`      | Perform SPI loopback test |
+| `set-mic-output`    | Configure I²S microphone output routing |
+| `flash-firmware`    | Flash the XMOS factory image |
 
----
-
-## Install the .deb on the Pi
-
-Copy the `.deb` to the Pi and install:
+### Power Delivery Information
 
 ```bash
-sudo dpkg -i satellite1-rpi_<version>_arm64.deb
-# If dpkg reports missing deps (usually shouldn’t):
-# sudo apt-get -f install
+sat1 pd
 ```
 
-Post‑install does the following:
+Displays the currently negotiated USB-C Power Delivery contract, including voltage and current.
 
-- Creates `/opt/satellite1/venv` and installs from `/usr/share/satellite1/wheels/` (**offline**)
-- Installs config `/etc/satellite1.conf` (respecting local changes on upgrade)
-- Installs `sat1`, `sat1-line-out`, `sat1-xmos` wrappers in `/usr/bin/`
-- Installs `satellite1-init.service` (disabled by default)
+## Development
 
-> You may need a **reboot** after the first install if overlays / boot config were updated.
-
-
----
-
-## Development & tests
-
-```bash
-# Create a local venv
-python3 -m venv .venv
-. .venv/bin/activate
-
-# Editable install for dev (if you define extras)
-pip install -U pip
-pip install -e '.[dev]'   # provides pytest/black if configured
-
-# Run tests
-pytest -q
-```
-
-Run the CLIs from the working tree (no .deb required):
-
-```bash
-python -m satellite1.cli.cli_line_out_dac volume -v
-python -m satellite1.cli.cli_sat1 init
-```
-
-
----
-
-## Troubleshooting
-
-- **Permissions / GPIO mode**
-  - We select BCM mode where needed, but your process still must access `/dev/gpiochip*`, `/dev/spidev*`, `/dev/i2c-*`. Ensure your user is in `gpio`, `spi`, and `i2c`, then reboot.
-- **SPI/I2C disabled**
-  - Enable via `raspi-config` or ensure `/boot/firmware/config.txt` has:
-    ```
-    dtparam=spi=on
-    dtparam=i2c_arm=on
-    ```
-- **`flashrom` not found**
-  - `sudo apt-get install flashrom` and ensure the chip is wired to the Pi SPI bus (usually CS0).
-- **Service didn’t appear**
-  - `dpkg -L satellite1-rpi | grep systemd`
-  - If missing, check build logs; the package expects `dh_installsystemd` to run during build.
-- **Verbose logging**
-  - All CLIs support `-v` (INFO) and `-vv` (DEBUG).
-
-
----
-
-## License
-
-This project is released under the terms specified in `LICENSE`.
