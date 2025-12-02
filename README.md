@@ -2,82 +2,118 @@
 
 **Raspberry Pi SDK for the Satellite1-HAT**
 
-Components:
-- `satellite1-rpi` Python SDK library
-- `satellite1-rpi-setup` required pi setup wrapped into a debian package 
-- `rpi-kernel-fusb302` custom kernel with fusb302 support
-- `image-builder` builds images ready to flash to an sd-card
+This repository contains all components required to run the Satellite1-HAT on a Raspberry Pi Zero W2:
 
-> Target: Raspberry Pi Zero W2, Raspberry Pi OS (Bookworm)
+- **`satellite1-rpi`** — Python SDK library  
+- **`satellite1-rpi-setup`** — Raspberry Pi configuration packaged as a `.deb`  
+- **`rpi-kernel-fusb302`** — Custom Raspberry Pi kernel with USB-C Power Delivery support  
+- **`image-builder`** — Generates SD-card images with everything preinstalled
+
+> **Target Platform:** Raspberry Pi Zero W2  
+> **OS:** Raspberry Pi OS (Bookworm)
+
 ---
 
 ## Table of contents
-
 - [Quick start](#quick-start)
-- [RPi - Setup](#rpi---setup)
-- [CLI - Usage](#cli---usage) 
+- [RPi Setup](#rpi-setup)
+- [CLI Usage](#cli-usage)
 - [Development](#development)
-
 
 ---
 
 ## Quick start
-### Flash Satellite1-SDK-Image
-The most convenient way to setup your RPi is to flash the Satellite1-SDK-Image which gives you a Rapsberry Pi OS versions already prepared for the Satellite1-HAT.  
 
-1. Install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Set `Content Repository` in `APP OPTIONS` to ...
-3. Follow wizard
+### Flash the Satellite1 SDK Image
+The easiest way to set up the Satellite1-HAT is to flash the prepared **Satellite1 SDK Image**.  
+This image includes:
 
-## RPi - Setup
-### Kernel with USB-C PD Support
-The default Kernel of Raspberry Pi Os doesn't support usb-c power delivery.
+- Raspberry Pi OS (Bookworm)
+- Custom kernel with FUSB302 USB-C PD support
+- All necessary overlays and configuration
+- The Satellite1 Python SDK + CLI
+- Automatic DAC initialization at boot
 
-`linux-image-6.12.58-fusb302-rpi-v8_2_arm64.deb` contains the Raspberry Pi Os Kernel with these additional settings: 
+**Steps:**
+
+1. Install **Raspberry Pi Imager**  
+2. In *Application Settings*, set:  
+   **Content Repository → `<your repository URL>`**
+3. Select the **Satellite1 SDK Image**
+4. Flash it to an SD card  
+5. Boot the Raspberry Pi Zero W2 with the Satellite1-HAT installed
+
+---
+
+## RPi Setup
+
+### 1. Kernel with USB-C Power Delivery Support
+
+The default kernel shipped with Raspberry Pi OS does **not** include support for USB-C Power Delivery.
+
+Install the custom kernel:
+
+```bash
+sudo dpkg -i linux-image-6.12.58-fusb302-rpi-v8_2_arm64.deb
+```
+
+This kernel includes:
+
 ```
 CONFIG_TYPEC=m
 CONFIG_TYPEC_TCPM=m
 CONFIG_TYPEC_TCPCI=m
 CONFIG_TYPEC_FUSB302=m
 ```
-```bash
-sudo dpkg -i linux-image-6.12.58-fusb302-rpi-v8_2_arm64.deb
-```
 
-### Device Tree Overlays and Modules Setup
+Reboot after installation.
+
+---
+
+### 2. Device Tree Overlays and Module Configuration
+
+Install the setup package:
 
 ```bash
 sudo dpkg -i satellite1-rpi-setup_1.0-1_arm64.deb
 ```
-Installs:
-- fusb302b overlays (usb-c power delivery)
-- satellite1-i2s overlays (audio device)
-- etc/alsa/conf.d/50-satellite1.conf (alsa configuration)
-- /etc/modules-load.d/i2c.conf (load i2c-dev module on startup)
-- config.txt: spi on, i2s on, i2c_arm on, i2c_arm_baudrate 100000
-- i2c-sensor: "i2c-sensor,addr=0x38,chip=aht20" 
 
-### Python Satellite1-Rpi SDK 
+Installs and configures:
+
+- FUSB302 overlay (USB-C PD)
+- Satellite1 I²S audio overlay
+- `/etc/alsa/conf.d/50-satellite1.conf`
+- Loads `i2c-dev` on startup
+- Enables SPI, I²S, and I2C in `/boot/firmware/config.txt`
+- Adds sensor overlay:  
+  `i2c-sensor,addr=0x38,chip=aht20`
+
+---
+
+### 3. Python Satellite1 SDK
+
 ```bash
 sudo dpkg -i satellite1-rpi-sdk_0.1.5_arm64.deb
 ```
-- creates virtual env at /opt/satellite1/venv
-- installs satellite1-rpi python lib into that venv
-- creates /usr/bin/sat1 link
-- installs satellite1-init.service (initilizes the DACs at startup)
 
-## CLI - Usage
-The `sat1` command-line tool provides control over all Satellite1 HAT components, including:
+This will:
 
-- The DAC (audio output)
-- The XMOS audio processor
-- USB-C Power Delivery status
+- Create a venv at `/opt/satellite1/venv`
+- Install the Satellite1 Python library
+- Install the `sat1` CLI in `/usr/bin/sat1`
+- Install `satellite1-init.service` (initializes DACs at boot)
 
-A typical invocation looks like:
+---
 
-```bash
-sat1 [global options] <component> <command> [options...]
-```
+## CLI Usage
+
+The `sat1` CLI provides control over:
+
+- DAC  
+- XMOS  
+- USB-C PD
+
+---
 
 ### Global Usage
 
@@ -91,87 +127,104 @@ sat1 [-h] [--config CONFIG] [-v] {dac,xmos,pd} ...
 |----------|-------------|
 | `dac`    | DAC audio controls |
 | `xmos`   | XMOS interface and firmware controls |
-| `pd`     | Show current USB-C Power Delivery contract |
+| `pd`     | USB-C PD contract status |
 
-#### Global Options
+#### Options
 
 | Option | Description |
 |--------|-------------|
-| `-h`, `--help` | Show help and exit |
-| `--config FILE` | Custom TOML config file (default: `/etc/satellite1.conf`) |
-| `-v`, `--verbose` | Increase verbosity (`-v`, `-vv`) |
+| `-h`, `--help` | Show help |
+| `--config FILE` | Custom TOML config (default `/etc/satellite1.conf`) |
+| `-v`, `--verbose` | Increase verbosity |
 
-### DAC Controls
+---
+
+## DAC Controls
 
 ```bash
-sat1 dac [options] {volume,set-volume,mute,unmute,setup,plugged-in,status} ...
+sat1 dac [options] {volume,set-volume,mute,unmute,setup,plugged-in,status}
 ```
 
-#### DAC Commands
+### Commands
 
 | Command | Description |
 |---------|-------------|
-| `volume`       | Read current volume (0..1) |
-| `set-volume`   | Set output volume (0..1) |
-| `mute`         | Mute the line-out |
-| `unmute`       | Unmute the line-out |
-| `setup`        | Initialise the DAC |
-| `plugged-in`   | Check whether headphones are plugged in |
-| `status`       | Show current DAC state |
+| `volume` | Read current volume |
+| `set-volume` | Set volume |
+| `mute` | Mute line-out |
+| `unmute` | Unmute line-out |
+| `setup` | Initialize DAC |
+| `plugged-in` | Detect headphone jack |
+| `status` | Show status |
 
-#### DAC Selection
+---
+
+### DAC Selection
 
 ```bash
 --dac {auto,line-out,speaker}
 ```
 
-#### Line-Out Overrides
+---
+
+### Line-Out Overrides
 
 | Option | Description |
 |--------|-------------|
 | `--line-out-enabled` / `--no-line-out-enabled` | Enable/disable line-out |
-| `--line-out-startup-volume <0..1>` | Initial output volume |
-| `--line-out-startup-muted` / `--no-line-out-startup-muted` | Mute on startup |
+| `--line-out-startup-volume <0..1>` | Initial volume |
+| `--line-out-startup-muted` / `--no-line-out-startup-muted` | Mute at startup |
 | `--line-out-restore-on-startup` / `--no-line-out-restore-on-startup` | Restore previous state |
 
-#### Speaker Overrides
+---
+
+### Speaker Overrides
 
 | Option | Description |
 |--------|-------------|
-| `--speaker-enabled` / `--no-speaker-enabled` | Enable/disable speaker output |
-| `--speaker-startup-volume <0..1>` | Initial speaker volume |
-| `--speaker-startup-muted` / `--no-speaker-startup-muted` | Mute on startup |
+| `--speaker-enabled` / `--no-speaker-enabled` | Enable/disable speaker |
+| `--speaker-startup-volume <0..1>` | Startup volume |
+| `--speaker-startup-muted` / `--no-speaker-startup-muted` | Mute at startup |
 | `--speaker-restore-on-startup` / `--no-speaker-restore-on-startup` | Restore previous state |
-| `--speaker-channel {left,right,dwn_mix}` | Choose audio routing |
+| `--speaker-channel {left,right,dwn_mix}` | Output routing |
 | `--speaker-amp-level <int>` | Amplifier gain |
 
-### XMOS Controls
+---
+
+## XMOS Controls
 
 ```bash
 sat1 xmos {setup,read-firmware,read-status,reset,enable-flashing,disable-flashing,run-spi-test,set-mic-output,flash-firmware}
 ```
 
-#### XMOS Commands
+### Commands
 
 | Command | Description |
 |---------|-------------|
-| `setup`             | Initialise SPI & GPIO for XMOS |
-| `read-firmware`     | Read XMOS firmware version |
-| `read-status`       | Read status register |
-| `reset`             | Toggle the XMOS reset pin |
-| `enable-flashing`   | Enter XMOS flashing/reset mode |
-| `disable-flashing`  | Exit flashing/reset mode |
-| `run-spi-test`      | Perform SPI loopback test |
-| `set-mic-output`    | Configure I²S microphone output routing |
-| `flash-firmware`    | Flash the XMOS factory image |
+| `setup` | Initialize SPI/GPIO |
+| `read-firmware` | Read firmware version |
+| `read-status` | Read status register |
+| `reset` | Toggle reset |
+| `enable-flashing` | Enter flashing mode |
+| `disable-flashing` | Exit flashing mode |
+| `run-spi-test` | SPI echo test |
+| `set-mic-output` | Configure I²S microphone routing |
+| `flash-firmware` | Flash XMOS firmware |
 
-### Power Delivery Information
+---
+
+## Power Delivery
 
 ```bash
 sat1 pd
 ```
 
-Displays the currently negotiated USB-C Power Delivery contract, including voltage and current.
+Shows current USB-C Power Delivery contract.
+
+---
 
 ## Development
+
+
+More documentation coming soon.
 
