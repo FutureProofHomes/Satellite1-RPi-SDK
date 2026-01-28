@@ -1,4 +1,8 @@
-# Satellite1-RPi
+# 🚧 Experimental repository 
+> **Early-stage development only.**  
+> **No support is provided yet. Use at your own risk.**
+---
+## Satellite1-RPi
 
 **Raspberry Pi SDK for the Satellite1-HAT**
 
