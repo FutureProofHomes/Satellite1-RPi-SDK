@@ -1,5 +1,5 @@
 # Dockerfile.arm64.bookworm.py311
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-trixie
 
 # Tools & cross deps
 RUN dpkg --add-architecture arm64 && apt-get update && \

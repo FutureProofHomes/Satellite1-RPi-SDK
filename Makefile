@@ -7,7 +7,7 @@ PLATFORM      ?= linux/arm64
 DOCKER_MAKE   ?= docker/Makefile
 DOCKER_IMAGE  ?= satellite1-deb-builder
 
-OUT_DIR       ?= ${PWD}/build-assets
+OUT_DIR       ?= ${PWD}/out
 DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(SDK_VERSION)_$(ARCH).deb
 
 BUILD_DIR     ?= ${PWD}/build/sdk
@@ -74,7 +74,9 @@ $(DEB_TARGET): docker-image verify-git-is-clean $(DEBIAN_DIR) | $(OUT_DIR)
 	  $(DOCKER_IMAGE) \
 	  bash -lc ' \
 	  	dpkg-buildpackage -b -us -uc && \
-		cp ../*.deb debian/.wheelhouse/satellite1*.whl /out'
+		ls -la ../ && \
+		cp ../*.deb /out && \
+		cp debian/.wheelhouse/satellite1*.whl /out'
 	@echo
 	@echo "Built package: $(DEB_TARGET)"
 
@@ -113,4 +115,3 @@ shell: docker-image
 		-e "PRJ_VER=$(PYPROJ_RELEASE)" \
 		$(DOCKER_IMAGE) \
 		/bin/bash
-

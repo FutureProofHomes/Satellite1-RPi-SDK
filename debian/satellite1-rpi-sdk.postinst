@@ -32,14 +32,23 @@ case "$1" in
       exit 1
     fi
 
-    # 5) Install our wheel, resolving deps from our wheelhouse
-    "$VENVDIR/bin/pip" install --no-index --find-links="$WHEELDIR" --force-reinstall "$WHEEL"
+    # 5) Install our wheel, resolving deps from our wheelhouse.
+    #    Fall back to online install if a dep (e.g. spidev) is absent from the wheelhouse.
+    if ! "$VENVDIR/bin/pip" install --no-index --find-links="$WHEELDIR" --force-reinstall "$WHEEL"; then
+      echo "postinst: wheelhouse install incomplete, retrying with online index..." >&2
+      echo "retry online..." >&2
+      unset PIP_NO_INDEX
+      "$VENVDIR/bin/pip" install --find-links="$WHEELDIR" --force-reinstall "$WHEEL"
+    fi
 
     # 6) (optional) byte-compile
     "$VENVDIR/bin/python" -m compileall -q "$VENVDIR/lib" || true
 
-    # 7) (optional) systemd reload
-    command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload || true
+    # 7) (optional) systemd reload + enable + start satellite1-init.service
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl daemon-reload
+      systemctl enable --now satellite1-init.service
+    fi
     ;;
 esac
 
