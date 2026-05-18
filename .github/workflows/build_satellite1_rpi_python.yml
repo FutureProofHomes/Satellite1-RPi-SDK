@@ -1,0 +1,100 @@
+name: "Build: satellite1-rpi Python Package"
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Restore package cache
+        uses: actions/cache@v4
+        with:
+          path: apt-cache/
+          key: ${{ runner.os }}-${{ github.job }}-${{ inputs.image-name }}
+          restore-keys: |
+            ${{ runner.os }}-${{ github.job }}
+            ${{ runner.os }}
+
+      - name: Setup APT proxy on runner
+        run: |
+          mkdir -p apt-cache
+          sudo apt-get install -y apt-cacher-ng --no-install-suggests --no-install-recommends
+          sudo bash -c 'echo "Port: 9999" >> /etc/apt-cacher-ng/acng.conf'
+          sudo mv -f apt-cache/* /var/cache/apt-cacher-ng/ || true
+          sudo chown -R apt-cacher-ng:apt-cacher-ng /var/cache/apt-cacher-ng
+          sudo service apt-cacher-ng restart
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build deb-builder Docker image
+        working-directory: satellite1-rpi
+        run: |
+          make docker-image
+
+      - name: Build satellite1-rpi Debian package (includes Python wheel)
+        working-directory: satellite1-rpi
+        run: |
+          make deb
+
+      # Create Release for Tags
+      - name: Create Release for Tags
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: false
+          draft: false
+          files: |
+            satellite1-rpi/out/*.deb
+            satellite1-rpi/out/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Create Release for Branches
+      - name: Create Release for Branches
+        if: '!startsWith(github.ref, ''refs/tags/'')'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: false
+          prerelease: true
+          draft: false
+          files: |
+            satellite1-rpi/out/*.deb
+            satellite1-rpi/out/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Save APT cache for future builds
+      - name: Move packages to temp location for caching
+        run: |
+          mkdir -p apt-cache
+          if [ -d "/var/cache/apt-cacher-ng" ]; then
+            if [ "$(ls -A /var/cache/apt-cacher-ng)" ]; then
+              sudo rm -rf apt-cache/*
+              sudo mv -f /var/cache/apt-cacher-ng/* apt-cache/
+              echo "APT-Cacher-NG cache was successfully saved."
+            else
+              echo "::warning::The directory /var/cache/apt-cacher-ng/ exists but is empty. No cache available to save."
+            fi
+          else
+            echo "::warning::The directory /var/cache/apt-cacher-ng/ does not exist. APT-Cacher-NG might not be correctly installed or configured."
+          fi
+          
+          # Output of logfile for debugging
+          if [ -f "/var/log/apt-cacher-ng/apt-cacher.log" ]; then
+            echo "Contents of the APT-Cacher-NG logfile:"
+            cat /var/log/apt-cacher-ng/apt-cacher.log
+          else
+            echo "::warning::The logfile /var/log/apt-cacher-ng/apt-cacher.log does not exist."
+          fi
