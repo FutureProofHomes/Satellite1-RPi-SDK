@@ -2,6 +2,10 @@
 
 Python library and CLI tools for controlling the Satellite1 Raspberry Pi HAT.
 
+> **⚠️ Early-stage development:**
+> This is early-stage experimental software. No official support is provided yet. 
+> For issues and feature requests, open an issue on the GitHub repository: https://github.com/futureproofhomes/Satellite1-RPi/issues
+
 ## Overview
 
 The `satellite1-rpi` package provides:
