@@ -1,5 +1,0 @@
-satellite1-rpi-setup (1.0-1) unstable; urgency=medium
-
-  * Initial release: Install Raspberry Pi fusb302 kernel & device tree overlays.
-
- -- Your Name <mischa.siekmann@futureproofhomes.net>  Wed, 19 Nov 2025 10:00:00 +0000
