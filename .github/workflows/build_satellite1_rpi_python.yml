@@ -1,4 +1,4 @@
-name: "Build: satellite1-rpi Python Package"
+name: "Build: satellite1-rpi-sdk Python Package"
 
 on:
   push:
@@ -36,12 +36,12 @@ jobs:
           install: true
 
       - name: Build deb-builder Docker image
-        working-directory: satellite1-rpi
+        working-directory: ./
         run: |
           make docker-image
 
       - name: Build satellite1-rpi Debian package (includes Python wheel)
-        working-directory: satellite1-rpi
+        working-directory: ./
         run: |
           make deb
 
@@ -55,8 +55,8 @@ jobs:
           prerelease: false
           draft: false
           files: |
-            satellite1-rpi/out/*.deb
-            satellite1-rpi/out/*.whl
+            out/*.deb
+            out/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -70,8 +70,8 @@ jobs:
           prerelease: true
           draft: false
           files: |
-            satellite1-rpi/out/*.deb
-            satellite1-rpi/out/*.whl
+            out/*.deb
+            out/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
