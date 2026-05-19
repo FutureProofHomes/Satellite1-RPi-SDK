@@ -1,6 +1,14 @@
 #!/usr/bin/make -f
 export DH_VERBOSE=1
 
+# Abort immediately on any recipe error
+.SHELLFLAGS := -e -c
+
+# Provide version to setuptools-scm from Debian changelog
+DPKG_VERSION := $(shell dpkg-parsechangelog -ldebian/changelog --show-field Version)
+UPSTREAM_VERSION := $(shell echo $(DPKG_VERSION) | cut -d- -f1)
+export SETUPTOOLS_SCM_PRETEND_VERSION := $(UPSTREAM_VERSION)
+
 # Wheelhouse build dirs (throwaway)
 BUILD_VENV   := $(CURDIR)/debian/.build-venv
 WHEELHOUSE   := $(CURDIR)/debian/.wheelhouse
@@ -16,15 +24,15 @@ override_dh_auto_build-arch:
 	# Fresh build venv
 	rm -rf $(BUILD_VENV)
 	python3 -m venv $(BUILD_VENV)
-	$(BUILD_VENV)/bin/pip install --upgrade pip wheel
+	$(BUILD_VENV)/bin/pip install --upgrade 'pip>=23' 'setuptools>=61.0' 'wheel' 'build'
 
 	# Build a COMPLETE wheelhouse: your pkg + ALL deps (platform-specific wheels)
 	rm -rf $(WHEELHOUSE)
 	mkdir -p $(WHEELHOUSE)
-	$(BUILD_VENV)/bin/pip wheel --wheel-dir $(WHEELHOUSE) $(PRJ_ROOT)
+	$(BUILD_VENV)/bin/python -m build --wheel --outdir $(WHEELHOUSE) $(PRJ_ROOT)
 
 override_dh_auto_install-arch:
-	dh_auto_install
+	SETUPTOOLS_USE_DISTUTILS=stdlib dh_auto_install
 	for pkg in $(shell dh_listpackages); do \
 	  install -d debian/$$pkg/usr/share/satellite1/wheels ; \
 	  cp -a $(WHEELHOUSE)/*.whl debian/$$pkg/usr/share/satellite1/wheels/ ; \

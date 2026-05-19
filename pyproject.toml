@@ -11,10 +11,10 @@ license = { file = "LICENSE" }
 dynamic = ["version"]
 
 dependencies = [
-    "pydantic>=2.7",
-    "pydantic-settings>=2.4",
+    "pydantic>=2.13,<3",
+    "pydantic-settings>=2.14,<3",
     "smbus2>=0.4",
-    "spidev>=3.6 ; sys_platform == 'linux'",
+    "spidev>=3.8 ; sys_platform == 'linux'",
     "RPi.GPIO>=0.7 ; sys_platform == 'linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
 ]
 
