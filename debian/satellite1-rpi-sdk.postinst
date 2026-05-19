@@ -47,7 +47,8 @@ case "$1" in
     # 7) (optional) systemd reload + enable + start satellite1-init.service
     if command -v systemctl >/dev/null 2>&1; then
       systemctl daemon-reload
-      systemctl enable --now satellite1-init.service
+      systemctl enable satellite1-init.service
+      systemctl start satellite1-init.service || true
     fi
     ;;
 esac
