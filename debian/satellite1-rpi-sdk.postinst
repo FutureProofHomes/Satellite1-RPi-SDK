@@ -44,17 +44,36 @@ case "$1" in
     # 6) (optional) byte-compile
     "$VENVDIR/bin/python" -m compileall -q "$VENVDIR/lib" || true
 
-    # 7) (optional) systemd reload + enable + start satellite1-init.service
+    # 6b) device-access groups + the unprivileged user the button daemon runs
+    #     as (see /usr/lib/udev/rules.d/60-satellite1-sdk.rules). Other non-root
+    #     users (e.g. "sat") that run the tools should join uinput/spi too.
+    getent group uinput >/dev/null 2>&1 || groupadd --system uinput
+    getent group spi    >/dev/null 2>&1 || groupadd --system spi
+    if ! id uinput >/dev/null 2>&1; then
+      useradd --system --no-create-home --shell /usr/sbin/nologin \
+              --gid uinput --groups spi uinput || true
+    fi
+    # Apply the rules to devices that already exist (no reboot needed).
+    if command -v udevadm >/dev/null 2>&1; then
+      udevadm control --reload-rules 2>/dev/null || true
+      udevadm trigger --subsystem-match=misc --subsystem-match=spidev 2>/dev/null || true
+    fi
+
+    # 7) (optional) systemd reload + enable + start bundled services
     if command -v systemctl >/dev/null 2>&1; then
       systemctl daemon-reload
       systemctl enable satellite1-init.service
       systemctl start satellite1-init.service || true
+      # HAT button daemon (runs as root for /dev/uinput). Enable it; start
+      # best-effort (a no-op on hosts without the HAT/XMOS, which just retries).
+      systemctl enable satellite1-buttons.service
+      systemctl start satellite1-buttons.service || true
     fi
     ;;
 esac
 
 BIN_DIR=/usr/bin
-WRAPPERS="sat1 sat1-line-out sat1-xmos"
+WRAPPERS="sat1 sat1-line-out sat1-xmos sat1-buttons"
 
 ensure_wrapper() {
   name="$1"

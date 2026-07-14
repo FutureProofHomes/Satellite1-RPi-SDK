@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings>=2.14,<3",
     "smbus2>=0.4",
     "spidev>=3.8 ; sys_platform == 'linux'",
+    "evdev>=1.6 ; sys_platform == 'linux'",
     "RPi.GPIO>=0.7 ; sys_platform == 'linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
 ]
 
@@ -37,6 +38,7 @@ sat1-dac = "satellite1.cli.cli_dac:main"
 sat1-speaker = "satellite1.cli.cli_dac:speaker"
 sat1-lineout = "satellite1.cli.cli_dac:lineout"
 sat1-xmos = "satellite1.cli.cli_xmos:xmos_main"
+sat1-buttons = "satellite1.daemon.evdev:main"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"

@@ -86,6 +86,7 @@ $(DEBIAN_DIR):
 	echo "*" > "$(BUILD_DIR)/.gitignore"
 	cp -r "debian" "$(BUILD_DIR)"
 	cp -r "etc" "$(BUILD_DIR)"
+	cp -r "udev" "$(BUILD_DIR)"
 
 
 

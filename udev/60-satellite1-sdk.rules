@@ -1,0 +1,15 @@
+# Satellite1 SDK — non-root access to the devices the HAT tools use.
+#
+# The bundled satellite1-buttons.service runs as the unprivileged "uinput"
+# user, which is a member of these groups. Any OTHER non-root user that runs
+# the tools directly (e.g. "sat") must be added to the respective groups:
+#
+#     sudo usermod -aG uinput,spi <user>
+#
+# Groups are created by the package's postinst.
+
+# Button daemon injects key events through /dev/uinput (root-only by default).
+SUBSYSTEM=="misc", KERNEL=="uinput", OWNER="uinput", GROUP="uinput", MODE="0660"
+
+# XMOS control + button status register are read over SPI.
+SUBSYSTEM=="spidev", KERNEL=="spidev0.*", GROUP="spi", MODE="0660"

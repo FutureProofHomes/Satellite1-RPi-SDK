@@ -1,2 +1,3 @@
 debian/.wheelhouse/*.whl    usr/share/satellite1/wheels/
 etc/satellite1.conf etc/
+udev/60-satellite1-sdk.rules usr/lib/udev/rules.d/

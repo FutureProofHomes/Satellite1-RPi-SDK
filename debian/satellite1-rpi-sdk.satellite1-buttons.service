@@ -1,0 +1,19 @@
+[Unit]
+Description=Satellite1 HAT buttons -> uinput key events
+After=multi-user.target
+
+[Service]
+Type=exec
+# Runs unprivileged: the "uinput" user owns /dev/uinput and is in the "spi"
+# group (see 60-satellite1-sdk.rules), so no root is needed.
+User=uinput
+Group=uinput
+SupplementaryGroups=spi
+ExecStart=/opt/satellite1/venv/bin/sat1-buttons
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

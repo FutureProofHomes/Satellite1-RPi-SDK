@@ -27,8 +27,9 @@ sudo dpkg -i satellite1-rpi-sdk_0.1.5_arm64.deb
 This creates:
 
 - Python virtual environment at `/opt/satellite1/venv`
-- CLI binaries (`sat1`, `sat1-dac`, `sat1-xmos`) in `/usr/bin/`
+- CLI binaries (`sat1`, `sat1-dac`, `sat1-xmos`, `sat1-buttons`) in `/usr/bin/`
 - `satellite1-init.service` to initialize DAC at boot
+- `satellite1-buttons.service` to run the HAT button daemon at boot
 
 No reboot required.
 
@@ -202,6 +203,61 @@ sat1 pd
 ```
 
 Shows the current USB-C Power Delivery contract: voltage, current, maximum power, and contract type (PD, USB, etc.).
+
+## Button daemon
+
+The HAT's four buttons are GPIO bits in the XMOS control status register.
+The `sat1-buttons` daemon polls that register over SPI, debounces the
+reads, and injects standard key events through `/dev/uinput`, so any
+consumer (Home Assistant, a desktop, `evtest`) sees a normal input device:
+
+| Button | Default key event |
+| -------- | ----------- |
+| Volume up | `KEY_VOLUMEUP` |
+| Volume down | `KEY_VOLUMEDOWN` |
+| Action | `KEY_MUTE` |
+
+The **action** button (the manufacturer's designation) defaults to `KEY_MUTE`
+so it toggles the speaker mute, matching typical satellite use.
+
+The package installs and enables `satellite1-buttons.service`, which runs
+the daemon at boot, so buttons work out of the box. To run it manually:
+
+```bash
+sudo sat1-buttons                  # foreground
+sudo sat1-buttons --poll-seconds 0.05 --confirm-samples 3 -v
+```
+
+The mic-mute button (bit 3) is handled by the XMOS in hardware (it cuts
+the mic and toggles the red LED) and is deliberately not emitted here.
+
+**Remapping.** The button → key-code mapping is configurable in the
+`[buttons]` table of `/etc/satellite1.conf` (or `--config <file>`), so you can
+repurpose a button without touching code — e.g. make the action button
+play/pause instead of mute:
+
+```toml
+[buttons]
+volume_up = "KEY_VOLUMEUP"
+volume_down = "KEY_VOLUMEDOWN"
+action = "KEY_PLAYPAUSE"   # was KEY_MUTE; "" disables the button
+```
+
+**Permissions.** `/dev/uinput` is root-only by default. The package installs
+a udev rule (`/usr/lib/udev/rules.d/60-satellite1-sdk.rules`) that puts
+`/dev/uinput` in a `uinput` group and `/dev/spidev0.*` in the `spi` group, and
+creates a system `uinput` user in both groups. The bundled
+`satellite1-buttons.service` runs as that unprivileged user — no root. To run
+the daemon manually as another non-root user (e.g. `sat`), add them to the
+groups:
+
+```bash
+sudo usermod -aG uinput,spi sat
+```
+
+Because the alpha XMOS firmware occasionally returns garbled status frames,
+reads are validated and a state must repeat for `--confirm-samples` polls
+before it is trusted.
 
 ## Configuration
 

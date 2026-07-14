@@ -43,6 +43,7 @@ override_dh_auto_install-arch:
 override_dh_auto_clean:
 	rm -rf $(BUILD_VENV) $(WHEELHOUSE)
 
-# Don’t start the unit at install time (it will still be enabled)
+# Don’t start the units at install time (they will still be enabled)
 override_dh_installsystemd:
 	dh_installsystemd --no-start --name satellite1-init
+	dh_installsystemd --no-start --name satellite1-buttons
