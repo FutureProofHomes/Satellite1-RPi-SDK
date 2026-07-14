@@ -203,6 +203,60 @@ sat1 pd
 
 Shows the current USB-C Power Delivery contract: voltage, current, maximum power, and contract type (PD, USB, etc.).
 
+## LED ring
+
+The Satellite1 HAT carries a 24-LED WS2812 ring. The SDK provides the
+"how to drive it" layer — a small wrapper around `rpi_ws281x` that hides the
+low-level `PixelStrip` arguments and the Raspberry-Pi DMA gotcha — and leaves
+the animations to you.
+
+```python
+from satellite1.components.led_ring import LedRing
+
+ring = LedRing.for_satellite1(brightness=0.4)  # 24 px, GPIO12, DMA auto
+ring.fill((0, 90, 255))                        # blue
+ring.show()
+# ... later
+ring.clear()
+```
+
+`ring[i] = (r, g, b)`, `ring.fill(color)`, `ring.set_pixels([...])`,
+`ring.show()`, and helpers `wheel()` / `scale()` are available for building
+effects.
+
+**DMA channel note.** The Satellite1 HAT is designed for the **Raspberry Pi
+Zero 2 W**, which uses **DMA channel 14** (the default). The stock channel 10
+wedges against the HAT's active I2S audio. `LedRing.for_satellite1()` selects
+this for you via `satellite1_dma_channel()`, so you normally don't set it.[^cm4]
+
+[^cm4]: This has also been exercised on a CM4 (BCM2711) — a non-standard
+    pairing that no Satellite1 enclosure supports — where channel 14 is a
+    "DMA-lite" engine and `ws2811_render` fails with error -10; there
+    `satellite1_dma_channel()` returns channel 10 automatically. Getting the
+    channel wrong while I2S audio runs is what causes the wedge / render error.
+
+**Permissions.** `rpi_ws281x` drives the LEDs by DMA into the PWM peripheral,
+which needs direct physical-memory access (`/dev/mem`), so it requires **root**
+(or the `CAP_SYS_RAWIO` capability). Unlike character devices such as
+`/dev/uinput` or `/dev/spidev`, this path has no group-ownable device node, so
+it **cannot** be delegated to a non-root user with a udev rule + group the way
+the button daemon is — run it as root (`sudo`), or grant the process
+`CAP_SYS_RAWIO` (e.g. a systemd unit with
+`AmbientCapabilities=CAP_SYS_RAWIO`). GPIO12 is used deliberately — it keeps the
+ring off the I2S BCLK pin (GPIO18).
+
+### Example animations
+
+`examples/led_ring_animations.py` is a runnable starting point (pulse and
+rainbow effects) — the seed of a full "LED animator" that maps effects to your
+assistant's listening / speaking / muted states. It is not installed by the
+package; copy it and adapt it.
+
+```bash
+sudo python3 examples/led_ring_animations.py            # cycle demos
+sudo python3 examples/led_ring_animations.py --effect rainbow
+```
+
 ## Configuration
 
 The CLI reads configuration from `/etc/satellite1.conf` by default (TOML format).

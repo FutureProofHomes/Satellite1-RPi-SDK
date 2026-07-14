@@ -16,6 +16,7 @@ dependencies = [
     "smbus2>=0.4",
     "spidev>=3.8 ; sys_platform == 'linux'",
     "RPi.GPIO>=0.7 ; sys_platform == 'linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
+    "rpi_ws281x>=5.0 ; sys_platform == 'linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
 ]
 
 requires-python = ">=3.11"
