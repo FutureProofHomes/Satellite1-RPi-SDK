@@ -1,5 +1,5 @@
 PACKAGE_NAME  ?= satellite1-rpi-sdk
-SDK_VERSION   ?= 1.0
+SDK_VERSION   ?= 1.1
 ARCH          ?= arm64
 
 DOCKER        ?= docker
