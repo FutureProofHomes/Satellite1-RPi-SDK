@@ -1,3 +1,10 @@
+satellite1-rpi-sdk (0.1.6) bookworm; urgency=medium
+
+  * set default volume to 100%
+
+ -- Florian Asche <github@florian-asche.de>  Mon, 26 Jul 2026 16:23:08 +0000
+
+
 satellite1-rpi-sdk (0.1.5) bookworm; urgency=medium
 
   * dac setup fix 
