@@ -73,7 +73,9 @@ def _handle(args: argparse.Namespace) -> int:
         print(val)
         return 0
     if args.cmd == "set-volume":
-        val = active_dac.set_volume(args.volume)
+        if not active_dac.set_volume(args.volume):
+            raise SystemExit(f"Failed to set {dac_key} volume")
+        val = active_dac.volume
         log.info(f"Set {dac_key} volume to {val}")
         print(val)
         return 0
