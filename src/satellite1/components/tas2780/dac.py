@@ -23,6 +23,9 @@ class TAS2780Config(I2cDeviceConfig):
 
 class TAS2780:
     """"""
+
+    DVC_MAX_ATTN = 100
+
     def __init__(self, config: TAS2780Config):
         self.config: TAS2780Config = config
         self._i2c: I2cInterface = I2cInterface(config.i2c_bus, config.i2c_addr)
@@ -148,7 +151,7 @@ class TAS2780:
 
     @property
     def volume(self) -> float:    
-        return self._volume
+        return self._read_volume()
 
     # ---- power management ----
     def set_power_mode(self, mode: PwrMode) -> bool:
@@ -166,6 +169,14 @@ class TAS2780:
     def get_power_mode(self) -> PwrMode:
         """Get current power mode"""
         return self._power_mode
+
+    def set_amp_level(self, level: int) -> bool:
+        self._amp_level = max(0, min(0x14, int(level)))
+        return self._write_amp_level()
+
+    @property
+    def amp_level(self) -> int:
+        return self._read_amp_level()
     
     # ---- writers ----
     def _init_dac(self) -> None:
@@ -230,15 +241,29 @@ class TAS2780:
 
     def _write_volume(self) -> bool:
         try:
-            attenuation = int(round((1. - self._volume) * 100))
-            code = max(0, min(0xc8, attenuation))
+            attenuation = int(round((1. - self._volume) * self.DVC_MAX_ATTN))
+            code = max(0, min(self.DVC_MAX_ATTN, attenuation))
             log.debug("Setting DVC to 0x%02X (vol=%.3f)", code, self._volume)
             with self._i2c as bus:
+                bus.write_byte(REG.PAGE_SELECT, 0x00)
                 bus.write_byte(REG.DVC, code)
             return True
         except OSError as e:
             log.error("Writing volume failed: %s", e)
             return False
+
+    def _read_volume(self) -> float:
+        try:
+            with self._i2c as bus:
+                bus.write_byte(REG.PAGE_SELECT, 0x00)
+                code = bus.read_byte(REG.DVC)
+        except (OSError, RuntimeError) as e:
+            log.error("Reading volume failed: %s", e)
+            return self._volume
+
+        attenuation = max(0, min(self.DVC_MAX_ATTN, code))
+        self._volume = 1.0 - (attenuation / self.DVC_MAX_ATTN)
+        return self._volume
     
     def _write_power_mode(self, mode: PwrMode) -> None:
         """
@@ -279,13 +304,27 @@ class TAS2780:
         with self._i2c as bus:
             bus.write_byte(REG.TDM_CFG2, reg_val)
 
-    def _write_amp_level(self):
+    def _write_amp_level(self) -> bool:
         target = max(0, min(0x14, self._amp_level))
-        with self._i2c as bus:
-            val = bus.read_byte(REG.CHNL_0)
-            val &= ~REG.CHNL_0_AMP_LEVEL_MASK
-            val |= target << REG.CHNL_0_AMP_LEVEL_SHIFT
-            bus.write_byte(REG.CHNL_0, val)
+        try:
+            with self._i2c as bus:
+                val = bus.read_byte(REG.CHNL_0)
+                val &= ~REG.CHNL_0_AMP_LEVEL_MASK
+                val |= target << REG.CHNL_0_AMP_LEVEL_SHIFT
+                bus.write_byte(REG.CHNL_0, val)
+            return True
+        except OSError as e:
+            log.error("Writing amp level failed: %s", e)
+            return False
 
-    
+    def _read_amp_level(self) -> int:
+        try:
+            with self._i2c as bus:
+                val = bus.read_byte(REG.CHNL_0)
+        except (OSError, RuntimeError) as e:
+            log.error("Reading amp level failed: %s", e)
+            return self._amp_level
 
+        level = (val & REG.CHNL_0_AMP_LEVEL_MASK) >> REG.CHNL_0_AMP_LEVEL_SHIFT
+        self._amp_level = max(0, min(0x14, level))
+        return self._amp_level

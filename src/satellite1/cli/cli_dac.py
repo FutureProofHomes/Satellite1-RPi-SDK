@@ -77,6 +77,22 @@ def _handle(args: argparse.Namespace) -> int:
         log.info(f"Set {dac_key} volume to {val}")
         print(val)
         return 0
+    if args.cmd == "amp-level":
+        if not hasattr(active_dac, "amp_level"):
+            raise SystemExit("amp-level is only supported by speaker DAC")
+        level = active_dac.amp_level
+        log.info("Current %s amp level: %d", dac_key, level)
+        print(level)
+        return 0
+    if args.cmd == "set-amp-level":
+        set_amp_level = getattr(active_dac, "set_amp_level", None)
+        if set_amp_level is None:
+            raise SystemExit("amp-level is only supported by speaker DAC")
+        ok = set_amp_level(args.level)
+        level = getattr(active_dac, "amp_level", args.level)
+        log.info("Set %s amp level to %d (ok=%s)", dac_key, level, ok)
+        print(level)
+        return 0
     if args.cmd == "mute":
         state = active_dac.set_mute_on()
         log.info("Muted: %s", state)
@@ -113,6 +129,17 @@ def attach_dac_parser(parser: argparse.ArgumentParser ) -> None:
     sp.add_parser("volume", help="Read current volume (0..1)")
     setv = sp.add_parser("set-volume", help="Set volume [0..1]")
     setv.add_argument("volume", type=float)
+    sp.add_parser(
+        "amp-level",
+        description="Read speaker amp level register value (0..20; 11..21 dBV, 0.5 dB steps)",
+        help="Read speaker amp level register value (0..20; 11..21 dBV, 0.5 dB steps)",
+    )
+    seta = sp.add_parser(
+        "set-amp-level",
+        description="Set speaker amp level register value [0..20] (11..21 dBV, 0.5 dB steps)",
+        help="Set speaker amp level register value [0..20] (11..21 dBV, 0.5 dB steps)",
+    )
+    seta.add_argument("level", type=int)
     sp.add_parser("mute", help="Mute line-out")
     sp.add_parser("unmute", help="Unmute line-out")
     sp.add_parser("setup", help="Initialise the DAC")
