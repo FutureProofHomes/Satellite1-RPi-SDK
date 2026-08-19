@@ -225,6 +225,25 @@ status = hat.pd.get_status()
 
 See the `src/` directory for the full API.
 
+### mmWave presence sensor (LD2410)
+
+The `LD2410` component reads target-presence reports from an HLK-LD2410
+24 GHz sensor over the UART. Enable the UART first (the
+`satellite1-rpi-setup` package configures `enable_uart=1` and routes the
+PL011 UART to the GPIO header):
+
+```python
+from satellite1.components.ld2410 import LD2410
+
+with LD2410() as sensor:          # defaults: /dev/serial0 @ 256000 baud
+    report = sensor.read()
+    if report and report.present:
+        print("occupied", report.detection_distance_cm, "cm")
+```
+
+`report.present` is true when a moving and/or stationary target is
+detected; individual distances/energies are available on the report.
+
 ## Systemd Service
 
 The `satellite1-init.service` runs once at boot to initialize the DAC. View logs with:
