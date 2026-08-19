@@ -69,6 +69,31 @@ def test_set_mute_writes_documented_mute_code_on_page_zero(monkeypatch):
     ]
 
 
+def test_setup_preserves_muted_volume(monkeypatch):
+    FakeI2c.writes = []
+    FakeI2c.reads = {}
+    monkeypatch.setattr(tas_mod, "I2cInterface", FakeI2c)
+
+    config = tas_mod.TAS2780Config(
+        i2c_bus=1,
+        i2c_addr=0x38,
+        enabled=False,
+        muted=True,
+    )
+    dac = tas_mod.TAS2780(config)
+    monkeypatch.setattr(dac, "_init_dac", lambda: None)
+    monkeypatch.setattr(dac, "set_power_mode", lambda mode: True)
+    monkeypatch.setattr(dac, "_write_amp_level", lambda: True)
+    monkeypatch.setattr(dac, "_write_channel", lambda: None)
+
+    dac.setup()
+
+    assert FakeI2c.writes[-2:] == [
+        (tas_mod.REG.PAGE_SELECT, 0x00),
+        (tas_mod.REG.DVC, 0xC9),
+    ]
+
+
 @pytest.mark.parametrize(
     ("channel", "route"),
     [
