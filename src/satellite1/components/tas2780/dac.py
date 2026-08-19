@@ -296,9 +296,9 @@ class TAS2780:
 
     def _write_channel(self):
         ch_val = {
-            "mono": REG.TDM_CFG2_RX_SCFG__STEREO_DWN_MIX,
             "left": REG.TDM_CFG2_RX_SCFG__MONO_LEFT,
-            "dwn_mix": REG.TDM_CFG2_RX_SCFG__MONO_RIGHT,
+            "right": REG.TDM_CFG2_RX_SCFG__MONO_RIGHT,
+            "dwn_mix": REG.TDM_CFG2_RX_SCFG__STEREO_DWN_MIX,
         }
         reg_val = ch_val[self._channel] 
         reg_val |= REG.TDM_CFG2_RX_WLEN__32BIT | REG.TDM_CFG2_RX_SLEN__32BIT

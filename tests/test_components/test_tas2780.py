@@ -1,3 +1,5 @@
+import pytest
+
 from satellite1.components.tas2780 import dac as tas_mod
 
 
@@ -65,6 +67,28 @@ def test_set_mute_writes_documented_mute_code_on_page_zero(monkeypatch):
         (tas_mod.REG.PAGE_SELECT, 0x00),
         (tas_mod.REG.DVC, 0xC9),
     ]
+
+
+@pytest.mark.parametrize(
+    ("channel", "route"),
+    [
+        ("left", tas_mod.REG.TDM_CFG2_RX_SCFG__MONO_LEFT),
+        ("right", tas_mod.REG.TDM_CFG2_RX_SCFG__MONO_RIGHT),
+        ("dwn_mix", tas_mod.REG.TDM_CFG2_RX_SCFG__STEREO_DWN_MIX),
+    ],
+)
+def test_set_channel_uses_expected_tdm_route(monkeypatch, channel, route):
+    FakeI2c.writes = []
+    FakeI2c.reads = {}
+    monkeypatch.setattr(tas_mod, "I2cInterface", FakeI2c)
+
+    dac = _make_dac(channel)
+    dac._write_channel()
+
+    assert FakeI2c.writes[-1] == (
+        tas_mod.REG.TDM_CFG2,
+        route | tas_mod.REG.TDM_CFG2_RX_WLEN__32BIT | tas_mod.REG.TDM_CFG2_RX_SLEN__32BIT,
+    )
 
 
 def test_set_amp_level_updates_channel_register(monkeypatch):
