@@ -96,6 +96,14 @@ def build_parser():
     return p
 
 
+def test_main_builds_dac_parser(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        dac_mod.main(["--help"])
+
+    assert excinfo.value.code == 0
+    assert "Satellite1 Line-out DAC" in capsys.readouterr().out
+
+
 def test_volume_command_uses_active_dac_and_prints_volume(dummy_dacs, capsys):
     line_dac, _ = dummy_dacs
     line_dac.volume = 0.75

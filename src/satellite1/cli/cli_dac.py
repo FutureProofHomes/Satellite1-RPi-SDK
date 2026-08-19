@@ -173,7 +173,7 @@ def _configure_logging(verbosity: int) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="sat1-line-out", description="Satellite1 Line-out DAC")
-    p.add_argument("--config", type=Path, ddefault=Path("/etc/satellite1.conf"), help="TOML config (default: /etc/satellite1.conf)")
+    p.add_argument("--config", type=Path, default=Path("/etc/satellite1.conf"), help="TOML config (default: /etc/satellite1.conf)")
     p.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v, -vv)")
     attach_dac_parser(p)
     
