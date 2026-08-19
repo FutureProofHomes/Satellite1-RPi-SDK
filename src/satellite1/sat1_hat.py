@@ -130,20 +130,27 @@ class XMOS():
     
     def flash_firmware(self, img: Path, verify: bool = False) -> None:
         from .components.flashrom_wrapper import Flashrom
-        self.set_flash_mode()
-        time.sleep(.5)
-        flasher = Flashrom.for_rpi_w25q64jv(timeout=600)
-        if not flasher.confirm_chip():
-            raise SystemExit("Flash chip not found or not accessible")
 
+        # Validate the image before putting the XMOS into reset, so a missing
+        # file never leaves the chip held in reset.
         if not img.exists():
             raise ValueError(f"Image-file not found {img}")
-        
-        log.info(f"Starting flashing of {img}")
-        flasher.write_image(img, verify=verify)
 
-        self.unset_flash_mode()
-        self._status = "DETACHED"
+        self.set_flash_mode()
+        time.sleep(.5)
+        try:
+            flasher = Flashrom.for_rpi_w25q64jv(timeout=600)
+            if not flasher.confirm_chip():
+                raise SystemExit("Flash chip not found or not accessible")
+
+            log.info(f"Starting flashing of {img}")
+            flasher.write_image(img, verify=verify)
+        finally:
+            # Always release the XMOS from reset, even if flashing raised —
+            # otherwise the chip is left held in reset (no audio) until the
+            # next power cycle.
+            self.unset_flash_mode()
+            self._status = "DETACHED"
 
     def run_spi_echo_test(self):
         for step in range(10):
