@@ -53,6 +53,20 @@ def test_set_volume_writes_dvc_on_page_zero(monkeypatch):
     ]
 
 
+def test_set_mute_writes_documented_mute_code_on_page_zero(monkeypatch):
+    FakeI2c.writes = []
+    FakeI2c.reads = {}
+    monkeypatch.setattr(tas_mod, "I2cInterface", FakeI2c)
+
+    dac = _make_dac("dwn_mix")
+
+    assert dac.set_mute_on() is True
+    assert FakeI2c.writes[-2:] == [
+        (tas_mod.REG.PAGE_SELECT, 0x00),
+        (tas_mod.REG.DVC, 0xC9),
+    ]
+
+
 def test_set_amp_level_updates_channel_register(monkeypatch):
     FakeI2c.writes = []
     FakeI2c.reads = {tas_mod.REG.CHNL_0: tas_mod.REG.CHNL_0_CDS_MODE_MASK | 0x01}

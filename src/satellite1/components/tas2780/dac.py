@@ -231,6 +231,7 @@ class TAS2780:
         try:
             if self._muted:
                 with self._i2c as bus:
+                    bus.write_byte(REG.PAGE_SELECT, 0x00)
                     bus.write_byte(REG.DVC, 0xc9)
             else:
                 self._write_volume()
