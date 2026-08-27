@@ -9,6 +9,7 @@
 /.pytest_cache
 /build/
 /build-*/
+/out/
 overlays/build/
 
 # Python cruft
@@ -22,4 +23,3 @@ overlays/build/
 .DS_Store
 
 **/.venv
-

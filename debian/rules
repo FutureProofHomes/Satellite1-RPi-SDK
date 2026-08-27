@@ -6,8 +6,10 @@ export DH_VERBOSE=1
 
 # Provide version to setuptools-scm from Debian changelog
 DPKG_VERSION := $(shell dpkg-parsechangelog -ldebian/changelog --show-field Version)
-UPSTREAM_VERSION := $(shell echo $(DPKG_VERSION) | cut -d- -f1)
+UPSTREAM_VERSION := $(shell printf '%s' '$(DPKG_VERSION)' | sed 's/-[^-]*$$//')
+ifndef SETUPTOOLS_SCM_PRETEND_VERSION
 export SETUPTOOLS_SCM_PRETEND_VERSION := $(UPSTREAM_VERSION)
+endif
 
 # Wheelhouse build dirs (throwaway)
 BUILD_VENV   := $(CURDIR)/debian/.build-venv

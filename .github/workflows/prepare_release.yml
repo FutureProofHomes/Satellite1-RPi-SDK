@@ -1,0 +1,126 @@
+name: Prepare SDK release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Check out release candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate release source and derive metadata
+        id: metadata
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/develop"
+          git fetch origin develop --tags
+          test "$GITHUB_SHA" = "$(git rev-parse origin/develop)"
+
+          deb_version="$(dpkg-parsechangelog -S Version)"
+          python_version="$(printf '%s' "$deb_version" | sed 's/-[^-]*$//')"
+          tag="v${deb_version}"
+          package_file="out/public/satellite1-rpi-sdk_${deb_version}_arm64.deb"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+            echo "Release tag already exists: ${tag}" >&2
+            exit 1
+          fi
+
+          echo "deb_version=${deb_version}" >> "$GITHUB_OUTPUT"
+          echo "python_version=${python_version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "title=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "package_file=${package_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore package cache
+        uses: actions/cache@v5
+        with:
+          path: apt-cache/
+          key: ${{ runner.os }}-${{ github.job }}-${{ inputs.image-name }}
+          restore-keys: |
+            ${{ runner.os }}-${{ github.job }}
+            ${{ runner.os }}
+
+      - name: Set up APT proxy on runner
+        run: |
+          mkdir -p apt-cache
+          sudo apt-get install -y apt-cacher-ng --no-install-suggests --no-install-recommends
+          sudo bash -c 'echo "Port: 9999" >> /etc/apt-cacher-ng/acng.conf'
+          sudo mv -f apt-cache/* /var/cache/apt-cacher-ng/ || true
+          sudo chown -R apt-cacher-ng:apt-cacher-ng /var/cache/apt-cacher-ng
+          sudo service apt-cacher-ng restart
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build public SDK packages
+        run: |
+          make clean
+          make deb BUILD_KIND=public
+
+      - name: Validate release packages
+        id: artifacts
+        env:
+          DEB_VERSION: ${{ steps.metadata.outputs.deb_version }}
+          PYTHON_VERSION: ${{ steps.metadata.outputs.python_version }}
+          PACKAGE_FILE: ${{ steps.metadata.outputs.package_file }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          test -f "$PACKAGE_FILE"
+          test "$(dpkg-deb -f "$PACKAGE_FILE" Package)" = "satellite1-rpi-sdk"
+          test "$(dpkg-deb -f "$PACKAGE_FILE" Version)" = "$DEB_VERSION"
+          test "$(dpkg-deb -f "$PACKAGE_FILE" Architecture)" = "arm64"
+
+          wheels=(out/public/satellite1_rpi-*.whl)
+          test "${#wheels[@]}" -eq 1
+          wheel_version="$(python3 -c 'import sys, zipfile; wheel = zipfile.ZipFile(sys.argv[1]); metadata = next(name for name in wheel.namelist() if name.endswith(".dist-info/METADATA")); print(next(line.split(": ", 1)[1] for line in wheel.read(metadata).decode().splitlines() if line.startswith("Version: ")))' "${wheels[0]}")"
+          test "$wheel_version" = "$PYTHON_VERSION"
+          echo "wheel_file=${wheels[0]}" >> "$GITHUB_OUTPUT"
+
+          dpkg-parsechangelog -S Changes > release-notes.md
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: sdk-release-artifacts
+          path: |
+            ${{ steps.metadata.outputs.package_file }}
+            ${{ steps.artifacts.outputs.wheel_file }}
+          if-no-files-found: error
+
+      - name: Create annotated release tag
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$RELEASE_TAG"
+
+      - name: Create draft GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.metadata.outputs.tag }}
+          name: ${{ steps.metadata.outputs.title }}
+          draft: true
+          body_path: release-notes.md
+          files: |
+            ${{ steps.metadata.outputs.package_file }}
+            ${{ steps.artifacts.outputs.wheel_file }}
+
+      - name: Save package cache
+        if: always()
+        run: |
+          mkdir -p apt-cache
+          if [ -d "/var/cache/apt-cacher-ng" ]; then
+            sudo rm -rf apt-cache/*
+            sudo mv -f /var/cache/apt-cacher-ng/* apt-cache/ || true
+          fi

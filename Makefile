@@ -1,14 +1,32 @@
 PACKAGE_NAME  ?= satellite1-rpi-sdk
-SDK_VERSION   ?= 0.1.6
 ARCH          ?= arm64
+BUILD_KIND    ?= local
+
+# The Debian changelog is the public release authority. Local builds use a
+# lower-sorting Debian version without changing the tracked changelog.
+PUBLIC_DEB_VERSION := $(shell sed -n '1s/.*(\(.*\)).*/\1/p' debian/changelog)
+PUBLIC_PYTHON_VERSION := $(shell printf '%s' '$(PUBLIC_DEB_VERSION)' | sed 's/-[^-]*$$//')
+LOCAL_BUILD_ID ?= $(shell date -u +%Y%m%dT%H%M%SZ).g$(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+LOCAL_PYTHON_BUILD_ID ?= $(shell date -u +%Y%m%d%H%M%S)+g$(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+
+ifeq ($(BUILD_KIND),public)
+DEB_VERSION := $(PUBLIC_DEB_VERSION)
+PYTHON_VERSION := $(PUBLIC_PYTHON_VERSION)
+else ifeq ($(BUILD_KIND),local)
+DEB_VERSION := $(PUBLIC_DEB_VERSION)~local.$(LOCAL_BUILD_ID)
+PYTHON_VERSION := $(PUBLIC_PYTHON_VERSION).dev$(LOCAL_PYTHON_BUILD_ID)
+else
+$(error BUILD_KIND must be either "local" or "public")
+endif
 
 DOCKER        ?= docker
 PLATFORM      ?= linux/arm64
 DOCKER_MAKE   ?= docker/Makefile
 DOCKER_IMAGE  ?= satellite1-deb-builder
 
-OUT_DIR       ?= ${PWD}/out
-DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(SDK_VERSION)_$(ARCH).deb
+OUT_ROOT      ?= ${PWD}/out
+OUT_DIR       := ${OUT_ROOT}/$(BUILD_KIND)
+DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(DEB_VERSION)_$(ARCH).deb
 
 BUILD_DIR     ?= ${PWD}/build/sdk
 DEBIAN_DIR    := ${BUILD_DIR}/debian
@@ -16,8 +34,8 @@ DEBIAN_DIR    := ${BUILD_DIR}/debian
 LOCAL_VENV    ?= ${PWD}/.venv
 
 # --- Metadata ---
-PYPROJ_VERSION := $(shell python -m setuptools_scm)
-PYPROJ_RELEASE := $(shell python -m setuptools_scm --strip-dev)
+PYPROJ_VERSION = $(shell python -m setuptools_scm)
+PYPROJ_RELEASE = $(shell python -m setuptools_scm --strip-dev)
 
 GIT_NAME := $(shell git config user.name)
 GIT_EMAIL := $(shell git config user.email)
@@ -42,11 +60,17 @@ print-meta:
 	@echo "GIT_NAME=$(GIT_NAME)"
 	@echo "GIT_EMAIL=$(GIT_EMAIL)"
 
-.PHONY: all shell deb docker-image clean
+.PHONY: all shell deb docker-image clean print-config
 
 all: $(DEB_TARGET) build
 
 deb: $(DEB_TARGET)
+
+print-config:
+	@echo "BUILD_KIND=$(BUILD_KIND)"
+	@echo "PUBLIC_DEB_VERSION=$(PUBLIC_DEB_VERSION)"
+	@echo "DEB_VERSION=$(DEB_VERSION)"
+	@echo "PYTHON_VERSION=$(PYTHON_VERSION)"
 
 docker-image:
 	$(MAKE) -C ./docker deb-image
@@ -70,13 +94,20 @@ $(DEB_TARGET): docker-image verify-git-is-clean $(DEBIAN_DIR) | $(OUT_DIR)
 	  -v "$(BUILD_DIR)":/work/src \
 	  -v "$(OUT_DIR)":/out \
 	  -v "${PWD}":/project \
+	  -e BUILD_KIND="$(BUILD_KIND)" \
+	  -e DEB_VERSION="$(DEB_VERSION)" \
+	  -e SETUPTOOLS_SCM_PRETEND_VERSION="$(PYTHON_VERSION)" \
 	  -w /work/src \
 	  $(DOCKER_IMAGE) \
-	  bash -lc ' \
+	  bash -lc 'set -e; \
+	  if [ "$$BUILD_KIND" = local ]; then \
+	    export DEBFULLNAME="Satellite1 local build" DEBEMAIL="local@invalid"; \
+	    dch --newversion "$$DEB_VERSION" --force-bad-version --distribution UNRELEASED --force-distribution "Local, non-release build."; \
+	  fi; \
 	  	dpkg-buildpackage -b -us -uc && \
 		ls -la ../ && \
-		cp ../*.deb /out && \
-		cp debian/.wheelhouse/satellite1*.whl /out'
+		cp ../$(PACKAGE_NAME)_$${DEB_VERSION}_$(ARCH).deb /out && \
+		cp debian/.wheelhouse/satellite1_rpi-*.whl /out'
 	@echo
 	@echo "Built package: $(DEB_TARGET)"
 
@@ -104,7 +135,7 @@ rpi-setup-deb: $(OUT_DIR)
 	$(MAKE) -C ./sys-packages/satellite1-rpi-setup deb OUT_DIR="$(OUT_DIR)"
 
 clean:
-	rm -rf "$(BUILD_DIR)" "$(DEB_TARGET)"
+	rm -rf "$(BUILD_DIR)" "${PWD}/out"
 
 shell: docker-image
 	$(DOCKER) run --rm -it \
