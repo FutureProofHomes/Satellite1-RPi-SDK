@@ -19,6 +19,11 @@ from satellite1_hw.audio_out import (
     setup_dacs,
 )
 from satellite1_hw.components.flashrom_wrapper import FlashromError
+from satellite1_hw.components.led_ring.interface import LedRing
+from satellite1_hw.components.led_ring.rpi_ws281x import RpiWs281xLedRing
+from satellite1_hw.components.led_ring.xmos_device_control import (
+    XmosDeviceControlLedRing,
+)
 from satellite1_hw.components.power_delivery import get_pd_contract
 from satellite1_hw.sat1_hat import XMOS
 
@@ -66,6 +71,7 @@ class HardwareController:
         self._speaker: SpeakerDac | None = None
         self._xmos: XMOS | None = None
         self._xmos_ready = False
+        self._led_ring: LedRing | None = None
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="satellite1d"
         )
@@ -84,6 +90,10 @@ class HardwareController:
                 await self._wait_for_xmos_ready(self._xmos)
             except Exception:
                 log.exception("XMOS is unavailable during daemon startup")
+            if self._config.led_ring.backend == "xmos_device_control" and not self._xmos_ready:
+                log.warning("XMOS LED ring is unavailable during daemon startup")
+            else:
+                self._led_ring = self._create_led_ring()
         except Exception:
             self._ownership_lock.release()
             raise
@@ -101,6 +111,7 @@ class HardwareController:
             "status": "healthy",
             "dac": self._line_out is not None and self._speaker is not None,
             "xmos": self._xmos_ready,
+            "led_ring": self._led_ring is not None,
         }
 
     async def dispatch(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -122,6 +133,7 @@ class HardwareController:
             "xmos.enable_flashing": self._xmos_enable_flashing,
             "xmos.disable_flashing": self._xmos_disable_flashing,
             "xmos.flash_firmware": self._xmos_flash_firmware,
+            "led.render": self._led_render,
         }
         operation = operations.get(method)
         if operation is None:
@@ -165,6 +177,16 @@ class HardwareController:
         if self._xmos is None or not self._xmos_ready:
             raise HardwareError("XMOS hardware is unavailable")
         return self._xmos
+
+    def _create_led_ring(self) -> LedRing:
+        if self._config.led_ring.backend == "rpi_ws281x":
+            return RpiWs281xLedRing.for_satellite1()
+        return XmosDeviceControlLedRing(self._xmos_device().device_control)
+
+    def _led_device(self) -> LedRing:
+        if self._led_ring is None:
+            raise HardwareError("LED ring hardware is unavailable")
+        return self._led_ring
 
     @staticmethod
     def _string(params: dict[str, Any], name: str) -> str:
@@ -251,6 +273,8 @@ class HardwareController:
         xmos = self._xmos or XMOS()
         self._xmos = xmos
         await self._wait_for_xmos_ready(xmos)
+        if self._config.led_ring.backend == "xmos_device_control":
+            self._led_ring = self._create_led_ring()
         return {"ok": True}
 
     async def _xmos_get_firmware(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -314,3 +338,10 @@ class HardwareController:
         finally:
             await self._wait_for_xmos_ready(xmos)
         return {"ok": ok}
+
+    async def _led_render(self, params: dict[str, Any]) -> dict[str, Any]:
+        pixels = params.get("pixels")
+        if not isinstance(pixels, list):
+            raise ValueError("pixels must be an array")
+        await self._call(self._led_device().render, pixels)
+        return {"ok": True}

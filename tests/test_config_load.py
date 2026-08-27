@@ -7,6 +7,7 @@ from typing import ClassVar, List, Literal
 import pytest
 from pydantic import BaseModel, Field, ConfigDict
 
+from satellite1d.config import LedRingConfig
 # Import the generic loader
 from satellite1d.config_load import load_from_toml
 
@@ -169,3 +170,18 @@ def test_missing_file_uses_defaults(tmp_path: Path):
     assert (cfg.enabled, cfg.level, cfg.mode, cfg.count, cfg.tags) == (
         False, 0.5, "auto", 1, []
     )
+
+
+def test_loads_led_ring_backend_from_its_daemon_section(tmp_path: Path):
+    cfg_file = tmp_path / "conf.toml"
+    write_toml(
+        cfg_file,
+        """
+        [led_ring]
+        backend = "rpi_ws281x"
+        """,
+    )
+
+    config = load_from_toml(LedRingConfig, config_path=cfg_file)
+
+    assert config.backend == "rpi_ws281x"

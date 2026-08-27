@@ -69,6 +69,30 @@ def test_xmos_reset_and_disable_flashing_reinitialize_device():
     asyncio.run(run())
 
 
+def test_led_render_validates_and_forwards_a_complete_frame():
+    class FakeLedRing:
+        def __init__(self) -> None:
+            self.frames = []
+
+        def render(self, pixels) -> None:
+            self.frames.append(pixels)
+
+    async def run() -> None:
+        controller = object.__new__(HardwareController)
+        controller._led_ring = FakeLedRing()
+
+        async def call(function, *args):
+            return function(*args)
+
+        controller._call = call
+        assert await controller._led_render({"pixels": [[1, 2, 3]] * 24}) == {"ok": True}
+        assert controller._led_ring.frames == [[[1, 2, 3]] * 24]
+        with pytest.raises(ValueError, match="pixels must be an array"):
+            await controller._led_render({"pixels": "not-a-frame"})
+
+    asyncio.run(run())
+
+
 def test_wait_for_xmos_ready_polls_until_firmware_is_available():
     class FakeXmos:
         def __init__(self) -> None:

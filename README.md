@@ -189,7 +189,7 @@ The `sat1` command provides unified control over Satellite1 hardware subsystems.
 ### Global options
 
 ```bash
-sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
+sat1 [-h] [--socket SOCKET] [-v] {dac,led,xmos,pd} ...
 ```
 
 
@@ -205,6 +205,7 @@ sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
 | Subcommand | Description                              |
 | ------------ | ------------------------------------------ |
 | `dac`      | Audio DAC controls (volume, mute, setup) |
+| `led`      | LED ring controls                         |
 | `xmos`     | XMOS firmware and interface management   |
 | `pd`       | USB-C Power Delivery status              |
 
@@ -253,6 +254,33 @@ sat1 xmos {setup|read-firmware|read-status|reset|enable-flashing|disable-flashin
 | `set-mic-output`   | Configure I²S microphone routing |
 | `flash-firmware`   | Flash new XMOS firmware           |
 
+### LED Commands
+
+```bash
+sat1 led clear
+sat1 led set-color RED GREEN BLUE [--leds SELECTOR]
+sat1 led set-pixels SELECTOR:R,G,B [SELECTOR:R,G,B ...]
+```
+
+`clear` turns every LED off. `set-color` colors every LED by default, or only
+the selected LEDs with `--leds`. `set-pixels` assigns distinct RGB colors to
+multiple selections. Each channel must be an integer from `0` to `255`.
+
+Selectors use zero-based LED indexes and inclusive ranges:
+
+```text
+0,4,9-12
+```
+
+Every command renders a complete frame, so unspecified LEDs are black. Later
+`set-pixels` assignments override earlier assignments when they overlap.
+
+```bash
+sat1 led set-color 255 0 0  # red
+sat1 led set-color 0 16 0 --leds 0,4,9-12
+sat1 led set-pixels 0:255,0,0 4:0,255,0 9-12:0,0,16
+```
+
 ### Power Delivery
 
 ```bash
@@ -272,6 +300,23 @@ Restart the daemon after changing the machine configuration:
 ```bash
 sudo systemctl restart satellite1d
 ```
+
+### LED Ring
+
+Select the LED transport used by `sat1 led` in the `[led_ring]` section:
+
+```toml
+[led_ring]
+backend = "xmos_device_control"
+```
+
+Supported values are:
+
+- `xmos_device_control`: Sends 24-pixel frames through the Satellite1 XMOS device-control protocol.
+- `rpi_ws281x`: Drives the ring directly through the Raspberry Pi PWM/DMA backend.
+
+The daemon owns this machine configuration and renders frames through the
+selected backend. Restart it after changing the setting.
 
 Override with:
 

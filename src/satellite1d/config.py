@@ -62,16 +62,27 @@ class SpeakerDacConfig(DacConfig):
         )
 
 
+class LedRingConfig(BaseModel):
+    """Select the LED transport owned by the daemon."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("led_ring",)
+    model_config = ConfigDict(extra="forbid")
+
+    backend: Literal["xmos_device_control", "rpi_ws281x"] = "xmos_device_control"
+
+
 @dataclass(frozen=True)
 class DaemonConfig:
     """Effective hardware configuration loaded once at daemon startup."""
 
     line_out: LineOutDacConfig
     speaker: SpeakerDacConfig
+    led_ring: LedRingConfig
 
 
 def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
     return DaemonConfig(
         line_out=load_from_toml(LineOutDacConfig, config_path=config_path),
         speaker=load_from_toml(SpeakerDacConfig, config_path=config_path),
+        led_ring=load_from_toml(LedRingConfig, config_path=config_path),
     )

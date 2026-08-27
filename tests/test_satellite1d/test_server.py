@@ -36,6 +36,15 @@ def test_server_reports_protocol_capabilities():
     asyncio.run(run())
 
 
+def test_server_advertises_led_capability_with_hardware():
+    class FakeHardware:
+        pass
+
+    server = Satellite1dServer(FakeHardware())
+
+    assert "led.*" in server._capabilities()
+
+
 def test_server_rejects_unknown_methods():
     async def run() -> None:
         socket_path = _socket_path()

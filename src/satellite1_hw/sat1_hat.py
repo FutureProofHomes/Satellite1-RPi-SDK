@@ -62,6 +62,11 @@ class XMOS():
 
     def close(self) -> None:
         self._cntrl.close()
+
+    @property
+    def device_control(self) -> XMOSDeviceCntrl:
+        """Expose the open device-control transport to higher-level drivers."""
+        return self._cntrl
         
     def read_firmware(self) -> str | None:
         ok, data = self._cntrl.send_cmd( DFU_SERVICER.CMD_GET_VERSION )

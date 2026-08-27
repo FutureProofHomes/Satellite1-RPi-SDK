@@ -6,6 +6,7 @@ from pathlib import Path
 
 from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
 from .cli_dac import register as register_dacs
+from .cli_led import register as register_leds
 from .cli_xmos import register as register_xmos
 
 log = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = p.add_subparsers(dest="component", required=True)
     register_dacs(sp)
+    register_leds(sp)
     register_xmos(sp)
     register_pd(sp)
 

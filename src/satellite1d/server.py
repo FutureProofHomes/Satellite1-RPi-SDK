@@ -150,4 +150,5 @@ class Satellite1dServer:
             "power.get_contract",
             "dac.*",
             "xmos.*",
+            "led.*",
         ]
