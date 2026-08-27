@@ -1,10 +1,17 @@
-from pydantic import BaseModel
+from dataclasses import dataclass
 from smbus2 import SMBus
 from typing import Self
 
-class I2cDeviceConfig(BaseModel):
+@dataclass(kw_only=True)
+class I2cDeviceConfig:
     i2c_bus: int = 1
     i2c_addr: int
+
+    def __post_init__(self) -> None:
+        if self.i2c_bus < 0:
+            raise ValueError("i2c_bus must be non-negative")
+        if not 0 <= self.i2c_addr <= 0x7F:
+            raise ValueError("i2c_addr must be from 0x00 to 0x7F")
 
 class I2cInterface:
     def __init__(self, bus_number: int, address: int ):

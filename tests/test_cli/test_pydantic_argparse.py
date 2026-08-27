@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, Field, ConfigDict
 
 # If your helpers live in satellite1/arg_overrides.py, adjust the import:
-from satellite1.cli.pydantic_argparse import add_pydantic_overrides, collect_overrides
+from satellite1_cli.pydantic_argparse import add_pydantic_overrides, collect_overrides
 
 
 class CliModel(BaseModel):

@@ -32,13 +32,13 @@ case "$1" in
       exit 1
     fi
 
-    # 5) Install our wheel, resolving deps from our wheelhouse.
+    # 5) Install our wheel with the CLI extra, resolving deps from our wheelhouse.
     #    Fall back to online install if a dep (e.g. spidev) is absent from the wheelhouse.
-    if ! "$VENVDIR/bin/pip" install --no-index --find-links="$WHEELDIR" --force-reinstall "$WHEEL"; then
+    if ! "$VENVDIR/bin/pip" install --no-index --find-links="$WHEELDIR" --force-reinstall "$WHEEL[cli]"; then
       echo "postinst: wheelhouse install incomplete, retrying with online index..." >&2
       echo "retry online..." >&2
       unset PIP_NO_INDEX
-      "$VENVDIR/bin/pip" install --find-links="$WHEELDIR" --force-reinstall "$WHEEL"
+      "$VENVDIR/bin/pip" install --find-links="$WHEELDIR" --force-reinstall "$WHEEL[cli]"
     fi
 
     # 6) (optional) byte-compile
@@ -69,13 +69,13 @@ ensure_wrapper() {
     # Adjust module path if your entry points differ
     case "$name" in
       sat1)
-        MODULE="satellite1.cli.cli_sat1"
+        MODULE="satellite1_cli.cli_sat1"
         ;;
       sat1-line-out)
-        MODULE="satellite1.cli.cli_dac"
+        MODULE="satellite1_cli.cli_dac"
         ;;
       sat1-xmos)
-        MODULE="satellite1.cli.cli_xmos"
+        MODULE="satellite1_cli.cli_xmos"
         ;;
       *)
         MODULE=""

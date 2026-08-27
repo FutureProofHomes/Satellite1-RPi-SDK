@@ -1,6 +1,5 @@
 
-from dataclasses import dataclass, field, InitVar, replace
-from typing import Callable, ClassVar
+from typing import Callable
 from pathlib import Path
 import time
 import random
@@ -22,7 +21,6 @@ from .components.xmos_device_cntrl import (
     AUDIO_CFG_SERVICER,
     SPI_ECHO_SERVICER
 )
-from pydantic import BaseModel, ConfigDict,Field, computed_field
 
 log = logging.getLogger(__name__)
 
@@ -189,4 +187,3 @@ class XMOS():
 
 def init() -> None:
     pass
-

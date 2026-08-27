@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, Field, ConfigDict
 
 # Import the generic loader
-from satellite1.config_load import load_from_toml
+from satellite1_cli.config_load import load_from_toml
 
 
 class DummyConfig(BaseModel):

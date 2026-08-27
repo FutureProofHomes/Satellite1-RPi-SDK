@@ -1,6 +1,5 @@
-from pathlib import Path
-from pydantic import BaseModel, ConfigDict,Field
-from typing import ClassVar, Literal, TypeAlias, Self
+from dataclasses import dataclass
+from typing import Literal, TypeAlias, Self
 
 from .components.pcm5122 import PCM5122, PCM5122Config, PCM5122GPIOPin
 from .components.tas2780 import TAS2780, TAS2780Config, AudioCh
@@ -17,17 +16,22 @@ PCM5122_JACK_SENSOR_PIN = 4
 PCM5122_I2C_ADDR = 0x4d
 TAS2780_I2C_ADDR = 0x3f
 
-class DACConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-    
+@dataclass
+class DACConfig:
     enabled: bool = True
-    startup_volume: float = Field(0.5, ge=0.0, le=1.0, alias="startup-volume", description="Initial output level [0..1]")
-    startup_muted: bool = Field(False, alias="startup-muted", description="Un-mute DAC after initialization?")
+    startup_volume: float = 0.5
+    startup_muted: bool = False
     restore_on_startup: bool = True
 
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.startup_volume <= 1.0:
+            raise ValueError("startup_volume must be from 0.0 to 1.0")
+
+
+@dataclass
 class LineOutDacConfig(DACConfig):
-    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("line_out", "line-out", "pcm5122")
-    
+    pass
+
 class LineOutDac(PCM5122):
     @classmethod
     def from_cfg(cls, config: DACConfig) -> Self:
@@ -57,10 +61,17 @@ def get_lineout_dac(config: DACConfig) -> LineOutDac:
     return LineOutDac.from_cfg(config)
 
 
+@dataclass
 class SpeakerDacConfig(DACConfig):
-    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("speaker", "tas2780")
     channel: AudioCh = "dwn_mix"
-    amp_level: int = Field(8, ge=0, le=0x14)  
+    amp_level: int = 8
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.channel not in ("left", "right", "dwn_mix"):
+            raise ValueError("channel must be 'left', 'right', or 'dwn_mix'")
+        if not 0 <= self.amp_level <= 0x14:
+            raise ValueError("amp_level must be from 0 to 20")
 
 
 class SpeakerDac(TAS2780):

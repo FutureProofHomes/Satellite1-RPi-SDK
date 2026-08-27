@@ -3,30 +3,44 @@ from __future__ import annotations
 import logging
 import time
 from typing import Literal
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
 from ..hal.i2c_interface import I2cInterface
 
 log = logging.getLogger(__name__)
 
 
-class PCM5122GPIOPin(BaseModel):
-    pin: int = Field(..., ge=1, le=6, description="PCM5122 has GPIO 1..6")
+@dataclass
+class PCM5122GPIOPin:
+    pin: int
     mode: Literal["in", "out"] = "out"
     value: bool | None = None
     inverted: bool = False
     name: str | None = None
 
+    def __post_init__(self) -> None:
+        if not 1 <= self.pin <= 6:
+            raise ValueError("PCM5122 GPIO pin must be from 1 to 6")
+        if self.mode not in ("in", "out"):
+            raise ValueError("PCM5122 GPIO mode must be 'in' or 'out'")
 
-class PCM5122Config(BaseModel):
+
+@dataclass
+class PCM5122Config:
     enabled: bool = True
-    i2c_bus: int = Field(1, ge=0)
-    i2c_addr: int = Field(0x4D, ge=0x00, le=0x7F)
-    gpio: list[PCM5122GPIOPin] = Field(default_factory=list)
-    
-    volume: float = Field(0.7, ge=0.0, le=1.0)
+    i2c_bus: int = 1
+    i2c_addr: int = 0x4D
+    gpio: list[PCM5122GPIOPin] = field(default_factory=list)
+    volume: float = 0.7
     muted: bool = False
-    
+
+    def __post_init__(self) -> None:
+        if self.i2c_bus < 0:
+            raise ValueError("i2c_bus must be non-negative")
+        if not 0 <= self.i2c_addr <= 0x7F:
+            raise ValueError("i2c_addr must be from 0x00 to 0x7F")
+        if not 0.0 <= self.volume <= 1.0:
+            raise ValueError("volume must be from 0.0 to 1.0")
 
 
 class PCM5122:
@@ -241,5 +255,4 @@ class PCM5122:
     def _check_pin(self, pin: int) -> None:
         if not (self._GPIO_MIN_PIN <= pin <= self._GPIO_MAX_PIN):
             raise ValueError(f"pin must be {self._GPIO_MIN_PIN}..{self._GPIO_MAX_PIN}")
-
 

@@ -5,11 +5,13 @@ import logging
 import sys
 
 from .pydantic_argparse import add_pydantic_overrides, collect_overrides
-from ..config_load import load_from_toml
+from .config_load import load_from_toml
 
-from ..audio_out import (
-    LineOutDacConfig, 
-    SpeakerDacConfig, 
+from .config import (
+    LineOutDacConfig,
+    SpeakerDacConfig,
+)
+from satellite1.audio_out import (
     get_active_dac_id,
     get_lineout_dac, 
     get_speaker_dac, 
@@ -21,7 +23,7 @@ LINE_OUT_PREFIX = "line-out"
 SPEAKER_PREFIX = "speaker"
 
 if TYPE_CHECKING:
-    from ..components.dac import DAC
+    from satellite1.components.dac import DAC
 
 
 def _handle(args: argparse.Namespace) -> int:
@@ -39,8 +41,8 @@ def _handle(args: argparse.Namespace) -> int:
     cfg_spk = load_from_toml(SpeakerDacConfig, config_path=args.config, overrides=overrides)
     log.debug("Effective SpkDac config: %s", cfg_spk.model_dump())
 
-    line_out_dac = get_lineout_dac(cfg_line)
-    speaker_dac = get_speaker_dac(cfg_spk)
+    line_out_dac = get_lineout_dac(cfg_line.to_sdk())
+    speaker_dac = get_speaker_dac(cfg_spk.to_sdk())
     
     dac_key: str = args.dac
     if dac_key == 'auto':

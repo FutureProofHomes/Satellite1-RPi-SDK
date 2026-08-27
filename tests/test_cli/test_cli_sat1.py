@@ -1,8 +1,7 @@
 # tests/test_cli_root.py
 #
 # Adjust this import to match your package layout, e.g.:
-# from satellite1.cli import main as cli_mod
-from satellite1.cli import cli_sat1 as cli_mod  # <-- CHANGE THIS
+from satellite1_cli import cli_sat1 as cli_mod
 
 
 import argparse
