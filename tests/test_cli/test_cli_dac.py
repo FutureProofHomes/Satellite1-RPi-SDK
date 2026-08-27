@@ -163,6 +163,20 @@ def test_set_amp_level_uses_speaker_dac_and_prints_level(dummy_dacs, capsys):
     assert captured.out.strip() == "12"
 
 
+def test_set_amp_level_fails_when_the_dac_write_fails(dummy_dacs):
+    _, spk_dac = dummy_dacs
+    spk_dac.set_amp_level = lambda level: False
+
+    parser = build_parser()
+    args = parser.parse_args(["--dac", "speaker", "set-amp-level", "12"])
+    dac_mod._configure_logging(args.verbose)
+
+    with pytest.raises(SystemExit) as excinfo:
+        dac_mod._handle(args)
+
+    assert "Failed to set speaker amp level" in str(excinfo.value)
+
+
 def test_amp_level_uses_speaker_dac_and_prints_level(dummy_dacs, capsys):
     _, spk_dac = dummy_dacs
     spk_dac.amp_level = 14

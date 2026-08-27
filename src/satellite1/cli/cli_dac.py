@@ -90,9 +90,10 @@ def _handle(args: argparse.Namespace) -> int:
         set_amp_level = getattr(active_dac, "set_amp_level", None)
         if set_amp_level is None:
             raise SystemExit("amp-level is only supported by speaker DAC")
-        ok = set_amp_level(args.level)
+        if not set_amp_level(args.level):
+            raise SystemExit(f"Failed to set {dac_key} amp level")
         level = getattr(active_dac, "amp_level", args.level)
-        log.info("Set %s amp level to %d (ok=%s)", dac_key, level, ok)
+        log.info("Set %s amp level to %d", dac_key, level)
         print(level)
         return 0
     if args.cmd == "mute":
