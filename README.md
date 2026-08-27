@@ -58,11 +58,18 @@ The package is built using Docker to ensure a consistent build environment.
 # Build the Docker image (shared Deb-builder)
 make docker-image
 
-# Build the .deb package (inside Docker)
+# Build local .deb and wheel packages (inside Docker)
 make deb
 ```
 
-Output `.deb` and wheel files are placed in the `out/` directory.
+Local output is placed in `out/local/`. Its Debian version is marked as a
+lower-sorting local build and its wheel uses a PEP 440 development version.
+
+Inspect the active package versions with:
+
+```bash
+make print-config
+```
 
 ### Clean build artifacts
 
@@ -77,6 +84,61 @@ Enter an interactive shell inside the build container:
 ```bash
 make shell
 ```
+
+## Versioning
+
+The first entry in `debian/changelog` is the authoritative public release
+version and release notes. Debian versions use this format:
+
+```text
+<python-version>-<package-revision>
+```
+
+Examples:
+
+- `0.2.0-1`: first package release for SDK version `0.2.0`
+- `0.2.0-2`: packaging-only correction for SDK version `0.2.0`
+- `0.3.0-1`: first package release for SDK version `0.3.0`
+
+The bundled Python wheel always uses the Debian upstream component, so the
+wheel in `0.2.0-2` is version `0.2.0`. Increment the Python version for SDK
+API or behavior changes, and the package revision for packaging, dependency,
+or installation changes.
+
+Local builds do not modify `debian/changelog` and are never releases. They
+derive versions such as:
+
+```text
+Debian: 0.2.0-1~local.20260827T120000Z.gabcdef123456
+Wheel:  0.2.0.dev20260827120000+gabcdef123456
+```
+
+The Debian local version sorts below the corresponding public package, while
+the wheel version remains valid PEP 440.
+
+## Releases
+
+CI builds local artifacts on pushes to `develop` and manual runs. These are
+available as workflow artifacts only: they never create tags or GitHub
+releases.
+
+To prepare a public release, manually run **Prepare SDK release** from the
+current `develop` tip. The workflow:
+
+- Reads the public version and release notes from `debian/changelog`.
+- Builds and validates the public `.deb` and its bundled Python wheel.
+- Creates the annotated `v<debian-version>` tag, for example `v0.2.0-1`.
+- Creates a draft GitHub Release with both artifacts attached.
+
+Review and edit the draft release before publishing it.
+
+### Public Release Checklist
+
+1. Update `debian/changelog` with the next public version and release notes.
+2. Build and inspect the package from a clean tree with `make deb BUILD_KIND=public`.
+3. Commit and merge the release changes to `develop`.
+4. Run the **Prepare SDK release** workflow from the current `develop` tip.
+5. Review the draft GitHub Release and publish it.
 
 ### Local development (SDK)
 

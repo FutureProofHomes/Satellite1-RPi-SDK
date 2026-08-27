@@ -1,18 +1,23 @@
-name: "Build: satellite1-rpi-sdk Python Package"
+name: Build local SDK packages
 
 on:
   push:
+    branches:
+      - develop
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v5
       
       - name: Restore package cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apt-cache/
           key: ${{ runner.os }}-${{ github.job }}-${{ inputs.image-name }}
@@ -20,7 +25,7 @@ jobs:
             ${{ runner.os }}-${{ github.job }}
             ${{ runner.os }}
 
-      - name: Setup APT proxy on runner
+      - name: Set up APT proxy on runner
         run: |
           mkdir -p apt-cache
           sudo apt-get install -y apt-cacher-ng --no-install-suggests --no-install-recommends
@@ -30,70 +35,43 @@ jobs:
           sudo service apt-cacher-ng restart
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          install: true
+        uses: docker/setup-buildx-action@v4
 
       - name: Build deb-builder Docker image
         working-directory: ./
         run: |
           make docker-image
 
-      - name: Build satellite1-rpi Debian package (includes Python wheel)
-        working-directory: ./
+      - name: Build local SDK packages
         run: |
-          make deb
+          make clean
+          make deb BUILD_KIND=local
 
-      # Create Release for Tags
-      - name: Create Release for Tags
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - name: Identify package artifacts
+        id: package-artifacts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(out/local/*.deb)
+          wheels=(out/local/satellite1_rpi-*.whl)
+          test "${#debs[@]}" -eq 1
+          test "${#wheels[@]}" -eq 1
+          echo "name=$(basename "${debs[0]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v6
         with:
-          tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
-          prerelease: false
-          draft: false
-          files: |
-            out/*.deb
-            out/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ steps.package-artifacts.outputs.name }}
+          path: |
+            out/local/*.deb
+            out/local/satellite1_rpi-*.whl
+          if-no-files-found: error
 
-      # Create Release for Branches
-      - name: Create Release for Branches
-        if: '!startsWith(github.ref, ''refs/tags/'')'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          generate_release_notes: false
-          prerelease: true
-          draft: false
-          files: |
-            out/*.deb
-            out/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Save APT cache for future builds
-      - name: Move packages to temp location for caching
+      - name: Save package cache
+        if: always()
         run: |
           mkdir -p apt-cache
           if [ -d "/var/cache/apt-cacher-ng" ]; then
-            if [ "$(ls -A /var/cache/apt-cacher-ng)" ]; then
-              sudo rm -rf apt-cache/*
-              sudo mv -f /var/cache/apt-cacher-ng/* apt-cache/
-              echo "APT-Cacher-NG cache was successfully saved."
-            else
-              echo "::warning::The directory /var/cache/apt-cacher-ng/ exists but is empty. No cache available to save."
-            fi
-          else
-            echo "::warning::The directory /var/cache/apt-cacher-ng/ does not exist. APT-Cacher-NG might not be correctly installed or configured."
-          fi
-          
-          # Output of logfile for debugging
-          if [ -f "/var/log/apt-cacher-ng/apt-cacher.log" ]; then
-            echo "Contents of the APT-Cacher-NG logfile:"
-            cat /var/log/apt-cacher-ng/apt-cacher.log
-          else
-            echo "::warning::The logfile /var/log/apt-cacher-ng/apt-cacher.log does not exist."
+            sudo rm -rf apt-cache/*
+            sudo mv -f /var/cache/apt-cacher-ng/* apt-cache/ || true
           fi
