@@ -21,16 +21,27 @@ The `satellite1-rpi` distribution provides:
 Install the SDK package:
 
 ```bash
-sudo dpkg -i satellite1-rpi-sdk_0.1.5_arm64.deb
+sudo dpkg -i satellite1-rpi-sdk_<version>_arm64.deb
 ```
 
 This creates:
 
 - Python virtual environment at `/opt/satellite1/venv`
-- CLI binaries (`sat1`, `sat1-dac`, `sat1-xmos`) in `/usr/bin/`
+- CLI binaries (`sat1`, `sat1-dac`, `sat1-speaker`, `sat1-lineout`, and
+  `sat1-xmos`) and `satellite1d` in `/usr/bin/`
 - `satellite1d.service` to own hardware and initialize DAC at boot
 
 No reboot required.
+
+The CLI connects through a group-owned daemon socket. Add an interactive user
+to `satellite1`, then log out and back in before using `sat1`:
+
+```bash
+sudo usermod -aG satellite1 "$USER"
+```
+
+XMOS firmware operations run through the daemon's SPI access and do not need
+`sudo`. Firmware images must be readable by the `satellite1d` service user.
 
 ### 4. Verify installation
 
@@ -255,7 +266,13 @@ Shows the current USB-C Power Delivery contract: voltage, current, maximum power
 
 `satellite1d` reads machine configuration from `/etc/satellite1.conf` by default
 (TOML format). The CLI sends requests to the daemon socket and does not load
-hardware configuration.
+hardware configuration. Missing configuration sections use their model defaults.
+
+Restart the daemon after changing the machine configuration:
+
+```bash
+sudo systemctl restart satellite1d
+```
 
 Override with:
 
@@ -264,6 +281,9 @@ satellite1d --config /path/to/custom.conf
 ```
 
 ## Python API
+
+The Python API accesses hardware directly. Use it for daemon development or
+maintenance only; do not use it while `satellite1d` is running.
 
 ```python
 from satellite1 import Sat1Hat

@@ -150,7 +150,8 @@ class XMOS():
         self.set_flash_mode()
         time.sleep(.5)
         try:
-            flasher = Flashrom.for_rpi_w25q64jv(timeout=600)
+            # satellite1d holds the spi group permission needed by flashrom.
+            flasher = Flashrom.for_rpi_w25q64jv(timeout=600, use_sudo=False)
             if not flasher.confirm_chip():
                 raise SystemExit("Flash chip not found or not accessible")
 

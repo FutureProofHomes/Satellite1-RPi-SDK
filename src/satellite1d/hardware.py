@@ -80,8 +80,7 @@ class HardwareController:
 
             self._xmos = XMOS()
             try:
-                await self._call(self._xmos.setup)
-                self._xmos_ready = True
+                await self._wait_for_xmos_ready(self._xmos)
             except Exception:
                 log.exception("XMOS is unavailable during daemon startup")
         except Exception:
@@ -133,6 +132,16 @@ class HardwareController:
         async with self._operation_lock:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(self._executor, partial(function, *args))
+
+    async def _wait_for_xmos_ready(self, xmos: XMOS) -> None:
+        await self._call(xmos.setup)
+        for _ in range(20):
+            if await self._call(xmos.read_firmware) is not None:
+                self._xmos_ready = True
+                return
+            await asyncio.sleep(0.1)
+        self._xmos_ready = False
+        raise HardwareError("XMOS did not become ready")
 
     def _dacs(self) -> tuple[LineOutDac, SpeakerDac]:
         if self._line_out is None or self._speaker is None:
@@ -241,8 +250,7 @@ class HardwareController:
     async def _xmos_setup(self, params: dict[str, Any]) -> dict[str, Any]:
         xmos = self._xmos or XMOS()
         self._xmos = xmos
-        await self._call(xmos.setup)
-        self._xmos_ready = True
+        await self._wait_for_xmos_ready(xmos)
         return {"ok": True}
 
     async def _xmos_get_firmware(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -275,13 +283,23 @@ class HardwareController:
         return {"ok": await self._call(self._xmos_device().run_spi_echo_test)}
 
     async def _xmos_reset(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"ok": await self._call(self._xmos_device().reset_xmos)}
+        xmos = self._xmos_device()
+        await self._call(xmos.close)
+        if not await self._call(xmos.reset_xmos):
+            raise HardwareError("failed to reset XMOS")
+        await self._wait_for_xmos_ready(xmos)
+        return {"ok": True}
 
     async def _xmos_enable_flashing(self, params: dict[str, Any]) -> dict[str, Any]:
         return {"ok": await self._call(self._xmos_device().set_flash_mode)}
 
     async def _xmos_disable_flashing(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"ok": await self._call(self._xmos_device().unset_flash_mode)}
+        xmos = self._xmos_device()
+        await self._call(xmos.close)
+        if not await self._call(xmos.unset_flash_mode):
+            raise HardwareError("failed to disable XMOS flashing mode")
+        await self._wait_for_xmos_ready(xmos)
+        return {"ok": True}
 
     async def _xmos_flash_firmware(self, params: dict[str, Any]) -> dict[str, Any]:
         path = Path(self._string(params, "path"))
@@ -293,5 +311,5 @@ class HardwareController:
         try:
             ok = await self._call(xmos.flash_firmware, path, verify)
         finally:
-            await self._call(xmos.setup)
+            await self._wait_for_xmos_ready(xmos)
         return {"ok": ok}

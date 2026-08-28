@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 import os
-import socket
 import stat
 from pathlib import Path
 from typing import Any
@@ -17,13 +16,6 @@ from .protocol import MAX_MESSAGE_SIZE, PROTOCOL_VERSION, ProtocolError, parse_r
 from .protocol import failure, success
 
 DEFAULT_SOCKET_PATH = Path("/run/satellite1/satellite1d.sock")
-PRIVILEGED_METHODS = {
-    "xmos.reset",
-    "xmos.enable_flashing",
-    "xmos.disable_flashing",
-    "xmos.flash_firmware",
-    "xmos.run_spi_test",
-}
 log = logging.getLogger(__name__)
 
 
@@ -78,7 +70,7 @@ class Satellite1dServer:
     ) -> None:
         try:
             while line := await reader.readline():
-                response = await self._handle_message(line, self._peer_is_root(writer))
+                response = await self._handle_message(line)
                 writer.write(
                     json.dumps(response, separators=(",", ":")).encode() + b"\n"
                 )
@@ -87,15 +79,13 @@ class Satellite1dServer:
             writer.close()
             await writer.wait_closed()
 
-    async def _handle_message(self, line: bytes, peer_is_root: bool) -> dict[str, Any]:
+    async def _handle_message(self, line: bytes) -> dict[str, Any]:
         if len(line) > MAX_MESSAGE_SIZE:
             return failure(None, "message_too_large", "request exceeds size limit")
         try:
             payload = json.loads(line)
             request = parse_request(payload)
-            return await self._dispatch(
-                request.method, request.params, request.request_id, peer_is_root
-            )
+            return await self._dispatch(request.method, request.params, request.request_id)
         except json.JSONDecodeError:
             return failure(None, "invalid_json", "request must contain valid JSON")
         except ProtocolError as exc:
@@ -106,7 +96,6 @@ class Satellite1dServer:
         method: str,
         params: dict[str, Any],
         request_id: int | str,
-        peer_is_root: bool,
     ) -> dict[str, Any]:
         if method == "hello":
             return success(
@@ -124,10 +113,6 @@ class Satellite1dServer:
         if self.hardware is None:
             return failure(
                 request_id, "method_not_found", f"unsupported method: {method}"
-            )
-        if method in PRIVILEGED_METHODS and not peer_is_root:
-            return failure(
-                request_id, "permission_denied", "operation requires root access"
             )
         try:
             return success(request_id, await self.hardware.dispatch(method, params))
@@ -152,19 +137,3 @@ class Satellite1dServer:
             "dac.*",
             "xmos.*",
         ]
-
-    @staticmethod
-    def _peer_is_root(writer: asyncio.StreamWriter) -> bool:
-        sock = writer.get_extra_info("socket")
-        if sock is None or not hasattr(socket, "SO_PEERCRED"):
-            return False
-        try:
-            credentials = sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
-            _, uid, _ = (
-                int.from_bytes(credentials[:4], "little"),
-                int.from_bytes(credentials[4:8], "little"),
-                int.from_bytes(credentials[8:12], "little"),
-            )
-            return uid == 0
-        except OSError:
-            return False

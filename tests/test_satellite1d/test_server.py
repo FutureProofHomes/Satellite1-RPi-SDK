@@ -80,3 +80,30 @@ def test_server_routes_hardware_requests():
             await server.close()
 
     asyncio.run(run())
+
+
+def test_server_routes_firmware_flash_from_socket_group():
+    class FakeHardware:
+        async def dispatch(self, method, params):
+            assert method == "xmos.flash_firmware"
+            assert params == {"path": "/tmp/firmware.bin", "verify": True}
+            return {"ok": True}
+
+    async def run() -> None:
+        socket_path = _socket_path()
+        server = Satellite1dServer(FakeHardware(), socket_path)
+        await server.start()
+        try:
+            response = await _request(
+                socket_path,
+                {
+                    "id": 1,
+                    "method": "xmos.flash_firmware",
+                    "params": {"path": "/tmp/firmware.bin", "verify": True},
+                },
+            )
+            assert response == {"id": 1, "result": {"ok": True}}
+        finally:
+            await server.close()
+
+    asyncio.run(run())
