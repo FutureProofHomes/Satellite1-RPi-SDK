@@ -28,10 +28,12 @@ override_dh_auto_build-arch:
 	python3 -m venv $(BUILD_VENV)
 	$(BUILD_VENV)/bin/pip install --upgrade 'pip>=23' 'setuptools>=61.0' 'wheel' 'build'
 
-	# Build a COMPLETE wheelhouse: your pkg + ALL deps (platform-specific wheels)
+	# Build a complete wheelhouse including the CLI extra used by the package service.
+	# setuptools reuses this directory and otherwise can retain removed Python modules.
+	rm -rf $(PRJ_ROOT)/build
 	rm -rf $(WHEELHOUSE)
 	mkdir -p $(WHEELHOUSE)
-	$(BUILD_VENV)/bin/python -m build --wheel --outdir $(WHEELHOUSE) $(PRJ_ROOT)
+	$(BUILD_VENV)/bin/pip wheel --wheel-dir $(WHEELHOUSE) "$(PRJ_ROOT)[cli]"
 
 override_dh_auto_install-arch:
 	SETUPTOOLS_USE_DISTUTILS=stdlib dh_auto_install

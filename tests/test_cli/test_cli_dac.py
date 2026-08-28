@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 # Adjust this import to your actual package name / module path:
-from satellite1.cli import cli_dac as dac_mod
+from satellite1_cli import cli_dac as dac_mod
 
 
 class DummyDAC:
@@ -69,6 +69,9 @@ def dummy_dacs(monkeypatch):
     class DummyCfg:
         def model_dump(self):
             return {"dummy": True}
+
+        def to_sdk(self):
+            return object()
 
     def fake_load_from_toml(cls, config_path=None, overrides=None):
         return DummyCfg()

@@ -3,7 +3,7 @@ from pathlib import Path
 import types
 import pytest
 
-import satellite1.cli.cli_xmos as x_cli
+import satellite1_cli.cli_xmos as x_cli
 
 
 @pytest.fixture(autouse=True)

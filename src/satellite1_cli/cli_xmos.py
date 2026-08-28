@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 import time
 
-from ..sat1_hat import XMOS
+from satellite1.sat1_hat import XMOS
 
 log = logging.getLogger(__name__)
 

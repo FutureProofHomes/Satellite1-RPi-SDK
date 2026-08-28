@@ -8,10 +8,10 @@ Python library and CLI tools for controlling the Satellite1 Raspberry Pi HAT.
 
 ## Overview
 
-The `satellite1-rpi` package provides:
+The `satellite1-rpi` distribution provides:
 
-- Python API for interacting with the Satellite1 hardware (DAC, XMOS, USB-C PD)
-- Command-line interface (`sat1`) for hardware control
+- Python SDK for interacting with the Satellite1 hardware (DAC, XMOS, USB-C PD)
+- Optional command-line interface (`sat1`) for hardware control
 - Systemd service for automatic DAC initialization at boot
 
 ## Installation
@@ -147,6 +147,18 @@ cd satellite1-rpi
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
+```
+
+Install the command-line interface when it is needed:
+
+```bash
+pip install -e ".[cli]"
+```
+
+For SDK and CLI development, install the development extra:
+
+```bash
+pip install -e ".[dev]"
 ```
 
 ### Running tests

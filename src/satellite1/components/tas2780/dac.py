@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from pydantic import Field
+from dataclasses import dataclass
 from typing import Literal, TypeAlias
 from satellite1.hal.i2c_interface import I2cInterface, I2cDeviceConfig
 from .registers import TAS2780_REGS as REG
@@ -12,14 +12,25 @@ __all__ = ["TAS2780Config", "TAS2780", "AudioCh"]
 PwrMode: TypeAlias = Literal[0,1,2,3]
 AudioCh: TypeAlias = Literal["left", "right", "dwn_mix"]
 
+@dataclass(kw_only=True)
 class TAS2780Config(I2cDeviceConfig):
     enabled: bool = True
-    volume: float = Field(0.7, ge=0.0, le=1.0)
+    volume: float = 0.7
     muted: bool = False
-    
     power_mode: PwrMode = 0
     channel: AudioCh = "dwn_mix"
-    amp_level: int = Field(8, ge=0, le=0x14)  
+    amp_level: int = 8
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not 0.0 <= self.volume <= 1.0:
+            raise ValueError("volume must be from 0.0 to 1.0")
+        if self.power_mode not in (0, 1, 2, 3):
+            raise ValueError("power_mode must be from 0 to 3")
+        if self.channel not in ("left", "right", "dwn_mix"):
+            raise ValueError("channel must be 'left', 'right', or 'dwn_mix'")
+        if not 0 <= self.amp_level <= 0x14:
+            raise ValueError("amp_level must be from 0 to 20")
 
 class TAS2780:
     """"""

@@ -1,4 +1,3 @@
-from pydantic import BaseModel, Field
 from typing import Sequence, Self
 from dataclasses import dataclass
 import logging
@@ -13,13 +12,26 @@ log = logging.getLogger("XMOSDeviceCntrl")
 
 MAX_SPI_TRANSFER_LEN = 256
 
-class DeviceCntrlConfig(BaseModel):
+@dataclass
+class DeviceCntrlConfig:
     bus: int = 0
     dev: int = 0
     max_speed_hz: int = 1_000_000
     mode: int = 3
     bits_per_word: int = 8
     status_reg_len: int = 4
+
+    def __post_init__(self) -> None:
+        if self.bus < 0 or self.dev < 0:
+            raise ValueError("SPI bus and device numbers must be non-negative")
+        if self.max_speed_hz <= 0:
+            raise ValueError("max_speed_hz must be positive")
+        if not 0 <= self.mode <= 3:
+            raise ValueError("SPI mode must be from 0 to 3")
+        if self.bits_per_word <= 0:
+            raise ValueError("bits_per_word must be positive")
+        if self.status_reg_len <= 0:
+            raise ValueError("status_reg_len must be positive")
 
 class CntrlProto():
     CMD_READ_BIT = 0x80
