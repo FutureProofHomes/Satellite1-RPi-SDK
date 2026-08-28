@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 
-import satellite1.components.flashrom_wrapper as fw_mod
-from satellite1.sat1_hat import XMOS
+import satellite1_hw.components.flashrom_wrapper as fw_mod
+from satellite1_hw.sat1_hat import XMOS
 
 
 def test_fw_from_bytes_parses():
@@ -20,7 +20,7 @@ def _flash_mode_spy(monkeypatch):
     calls = []
     monkeypatch.setattr(x, "set_flash_mode", lambda: calls.append("set"))
     monkeypatch.setattr(x, "unset_flash_mode", lambda: calls.append("unset"))
-    monkeypatch.setattr("satellite1.sat1_hat.time.sleep", lambda *a, **k: None)
+    monkeypatch.setattr("satellite1_hw.sat1_hat.time.sleep", lambda *a, **k: None)
     return x, calls
 
 

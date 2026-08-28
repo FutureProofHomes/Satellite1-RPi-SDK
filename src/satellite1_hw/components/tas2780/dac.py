@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
-from satellite1.hal.i2c_interface import I2cInterface, I2cDeviceConfig
+from satellite1_hw.hal.i2c_interface import I2cInterface, I2cDeviceConfig
 from .registers import TAS2780_REGS as REG
 log = logging.getLogger(__name__)
 

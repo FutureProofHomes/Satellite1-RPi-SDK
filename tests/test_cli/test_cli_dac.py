@@ -1,7 +1,9 @@
+import asyncio
 from pathlib import Path
 
 import pytest
 
+from satellite1 import DacStatus
 from satellite1_cli import cli_dac as dac_mod
 
 
@@ -9,25 +11,43 @@ from satellite1_cli import cli_dac as dac_mod
 def requests(monkeypatch):
     calls = []
 
-    def fake_request(args, method, **params):
-        calls.append((method, params))
-        if method == "dac.setup":
-            return {"ok": True}
-        if method == "dac.get_volume":
-            return {"volume": 0.75}
-        if method == "dac.set_volume":
-            return {"volume": params["volume"]}
-        if method == "dac.set_mute":
-            return {"muted": params["muted"]}
-        if method == "dac.get_amp_level":
-            return {"amp_level": 8}
-        if method == "dac.set_amp_level":
-            return {"amp_level": params["level"]}
-        if method == "dac.get_plugged_in":
-            return {"plugged_in": True}
-        if method == "dac.get_status":
-            return {"line_out": "line-out status", "speaker": "speaker status"}
-        raise AssertionError(f"unexpected method: {method}")
+    class FakeDac:
+        async def setup(self):
+            calls.append(("setup", {}))
+
+        async def get_volume(self, dac):
+            calls.append(("get_volume", {"dac": dac}))
+            return 0.75
+
+        async def set_volume(self, volume, dac):
+            calls.append(("set_volume", {"dac": dac, "volume": volume}))
+            return volume
+
+        async def set_muted(self, muted, dac):
+            calls.append(("set_muted", {"dac": dac, "muted": muted}))
+            return muted
+
+        async def get_amp_level(self, dac):
+            calls.append(("get_amp_level", {"dac": dac}))
+            return 8
+
+        async def set_amp_level(self, level, dac):
+            calls.append(("set_amp_level", {"dac": dac, "level": level}))
+            return level
+
+        async def is_line_out_plugged_in(self):
+            calls.append(("is_line_out_plugged_in", {}))
+            return True
+
+        async def get_status(self):
+            calls.append(("get_status", {}))
+            return DacStatus("line-out status", "speaker status")
+
+    class FakeSatellite:
+        dac = FakeDac()
+
+    def fake_request(args, operation):
+        return asyncio.run(operation(FakeSatellite()))
 
     monkeypatch.setattr(dac_mod, "_request", fake_request)
     return calls
@@ -51,32 +71,34 @@ def test_main_builds_socket_only_dac_parser(capsys):
 @pytest.mark.parametrize(
     ("argv", "method", "params", "output"),
     [
-        (["volume"], "dac.get_volume", {"dac": "auto"}, "0.75"),
+        (["volume"], "get_volume", {"dac": "auto"}, "0.75"),
         (
             ["set-volume", "0.33"],
-            "dac.set_volume",
+            "set_volume",
             {"dac": "auto", "volume": 0.33},
             "0.33",
         ),
-        (["mute"], "dac.set_mute", {"dac": "auto", "muted": True}, "True"),
-        (["unmute"], "dac.set_mute", {"dac": "auto", "muted": False}, "False"),
+        (["mute"], "set_muted", {"dac": "auto", "muted": True}, "True"),
+        (["unmute"], "set_muted", {"dac": "auto", "muted": False}, "False"),
         (
             ["--dac", "speaker", "amp-level"],
-            "dac.get_amp_level",
+            "get_amp_level",
             {"dac": "speaker"},
             "8",
         ),
         (
             ["--dac", "speaker", "set-amp-level", "12"],
-            "dac.set_amp_level",
+            "set_amp_level",
             {"dac": "speaker", "level": 12},
             "12",
         ),
-        (["plugged-in"], "dac.get_plugged_in", {}, "True"),
-        (["setup"], "dac.setup", {}, "True"),
+        (["plugged-in"], "is_line_out_plugged_in", {}, "True"),
+        (["setup"], "setup", {}, "True"),
     ],
 )
-def test_dac_commands_use_daemon_rpc(requests, capsys, argv, method, params, output):
+def test_dac_commands_use_the_public_client(
+    requests, capsys, argv, method, params, output
+):
     args = build_parser().parse_args(argv)
 
     assert dac_mod._handle(args) == 0
@@ -84,9 +106,9 @@ def test_dac_commands_use_daemon_rpc(requests, capsys, argv, method, params, out
     assert capsys.readouterr().out.strip() == output
 
 
-def test_status_uses_daemon_rpc(requests, capsys):
+def test_status_uses_the_public_client(requests, capsys):
     args = build_parser().parse_args(["status"])
 
     assert dac_mod._handle(args) == 0
-    assert requests == [("dac.get_status", {})]
+    assert requests == [("get_status", {})]
     assert capsys.readouterr().out.splitlines() == ["line-out status", "speaker status"]

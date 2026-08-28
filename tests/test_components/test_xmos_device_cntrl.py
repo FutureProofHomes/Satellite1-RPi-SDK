@@ -7,7 +7,7 @@ import importlib
 import sys
 
 
-MODULE_NAME = "satellite1.components.xmos_device_cntrl"  # change if your filename differs
+MODULE_NAME = "satellite1_hw.components.xmos_device_cntrl"
 
 
 def load_module_with_stubbed_spidev():
