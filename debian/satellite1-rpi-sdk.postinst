@@ -4,6 +4,7 @@ set -e
 # ----- Python venv & local wheel install (if shipped) -----
 VENVDIR=/opt/satellite1/venv
 WHEELDIR=/usr/share/satellite1/wheels
+HELPER=/usr/lib/satellite1/satellite1-ws281x-render
 
 if ! getent group satellite1 >/dev/null 2>&1; then
   addgroup --system satellite1
@@ -11,6 +12,18 @@ fi
 
 if ! getent passwd satellite1d >/dev/null 2>&1; then
   adduser --system --no-create-home --ingroup satellite1 satellite1d
+fi
+
+if [ ! -x "$HELPER" ]; then
+  echo "postinst: ERROR: missing WS281x renderer at $HELPER" >&2
+  exit 1
+fi
+chown root:satellite1 "$HELPER"
+chmod 0750 "$HELPER"
+setcap cap_dac_override,cap_sys_rawio=ep "$HELPER"
+if ! getcap "$HELPER" | grep -Fq 'cap_dac_override,cap_sys_rawio=ep'; then
+  echo "postinst: ERROR: failed to assign WS281x renderer capabilities" >&2
+  exit 1
 fi
 
 case "$1" in

@@ -19,8 +19,8 @@ Depends:
   ${misc:Depends},
   python3-venv, 
   python3-pip, 
-  flashrom
+  flashrom,
+  libcap2-bin
 Description: Satellite1 hardware daemon and command-line client
  Installs Satellite1 hardware configuration, a persistent least-privilege
  daemon, and a command-line client that communicates with the daemon.
-
