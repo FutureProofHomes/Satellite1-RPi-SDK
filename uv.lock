@@ -303,6 +303,12 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c4/0f/10b524a12b3445af1c607c27b2f5ed122ef55756e29942900e5c950735f2/RPi.GPIO-0.7.1.tar.gz", hash = "sha256:cd61c4b03c37b62bba4a5acfea9862749c33c618e0295e7e90aa4713fb373b70", size = 29090, upload-time = "2022-02-06T15:15:06.022Z" }
 
 [[package]]
+name = "rpi-ws281x"
+version = "5.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/1e/642208a685c5e96d38323f42c75d9b24f95e2d1b8390dd104e04a712f29e/rpi_ws281x-5.0.0.tar.gz", hash = "sha256:00ce6db771436b778d0930245cf8ea2aae11008cc5fd67d57789c5422af3ee55", size = 64519, upload-time = "2023-05-16T12:04:22.463Z" }
+
+[[package]]
 name = "satellite1-rpi"
 source = { editable = "." }
 dependencies = [
@@ -314,6 +320,7 @@ dependencies = [
 [package.optional-dependencies]
 daemon = [
     { name = "pydantic" },
+    { name = "rpi-ws281x", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'armv7l' and sys_platform == 'linux')" },
 ]
 dev = [
     { name = "black" },
@@ -328,6 +335,7 @@ requires-dist = [
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.13,<3" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "rpi-gpio", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'armv7l' and sys_platform == 'linux')", specifier = ">=0.7" },
+    { name = "rpi-ws281x", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'daemon') or (platform_machine == 'armv7l' and sys_platform == 'linux' and extra == 'daemon')", specifier = ">=5.0" },
     { name = "smbus2", specifier = ">=0.4" },
     { name = "spidev", marker = "sys_platform == 'linux'", specifier = ">=3.8" },
 ]
