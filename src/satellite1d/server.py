@@ -10,10 +10,17 @@ import stat
 from pathlib import Path
 from typing import Any
 
+from satellite1._protocol import (
+    MAX_MESSAGE_SIZE,
+    PROTOCOL_VERSION,
+    ProtocolError,
+    failure,
+    parse_request,
+    success,
+)
+
 from . import SERVICE_NAME
 from .hardware import HardwareController, HardwareError
-from .protocol import MAX_MESSAGE_SIZE, PROTOCOL_VERSION, ProtocolError, parse_request
-from .protocol import failure, success
 
 DEFAULT_SOCKET_PATH = Path("/run/satellite1/satellite1d.sock")
 log = logging.getLogger(__name__)
@@ -90,7 +97,9 @@ class Satellite1dServer:
         try:
             payload = json.loads(line)
             request = parse_request(payload)
-            return await self._dispatch(request.method, request.params, request.request_id)
+            return await self._dispatch(
+                request.method, request.params, request.request_id
+            )
         except json.JSONDecodeError:
             return failure(None, "invalid_json", "request must contain valid JSON")
         except ProtocolError as exc:

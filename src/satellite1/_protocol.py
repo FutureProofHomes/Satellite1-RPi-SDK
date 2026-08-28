@@ -1,4 +1,4 @@
-"""Versioned local protocol shared by the daemon and its CLI client."""
+"""Internal framing shared by the public client and local daemon."""
 
 from __future__ import annotations
 

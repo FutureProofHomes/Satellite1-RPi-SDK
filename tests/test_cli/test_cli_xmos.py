@@ -1,28 +1,50 @@
+import asyncio
 from pathlib import Path
 
 import pytest
 
 import satellite1_cli.cli_xmos as xmos_mod
+from satellite1 import XmosStatus
 
 
 @pytest.fixture
 def requests(monkeypatch):
     calls = []
 
-    def fake_request(args, method, timeout=10.0, **params):
-        calls.append((method, params))
-        results = {
-            "xmos.setup": {"ok": True},
-            "xmos.get_firmware": {"firmware": "v1.2.3"},
-            "xmos.get_status": {"device_status": 1, "gpio_port_a": 2, "gpio_port_b": 3},
-            "xmos.set_mic_output": {"ok": True},
-            "xmos.run_spi_test": {"ok": True},
-            "xmos.reset": {"ok": True},
-            "xmos.enable_flashing": {"ok": True},
-            "xmos.disable_flashing": {"ok": True},
-            "xmos.flash_firmware": {"ok": True},
-        }
-        return results[method]
+    class FakeXmos:
+        async def setup(self):
+            calls.append(("setup", {}))
+
+        async def get_firmware(self):
+            calls.append(("get_firmware", {}))
+            return "v1.2.3"
+
+        async def get_status(self):
+            calls.append(("get_status", {}))
+            return XmosStatus(1, 2, 3)
+
+        async def set_mic_output(self, left, right):
+            calls.append(("set_mic_output", {"left": left, "right": right}))
+
+        async def reset(self):
+            calls.append(("reset", {}))
+
+        async def enable_flashing(self):
+            calls.append(("enable_flashing", {}))
+            return True
+
+        async def disable_flashing(self):
+            calls.append(("disable_flashing", {}))
+
+        async def flash_firmware(self, path, verify):
+            calls.append(("flash_firmware", {"path": path, "verify": verify}))
+            return True
+
+    class FakeSatellite:
+        xmos = FakeXmos()
+
+    async def fake_request(args, operation):
+        return await operation(FakeSatellite())
 
     monkeypatch.setattr(xmos_mod, "_request", fake_request)
     return calls
@@ -38,33 +60,34 @@ def build_parser():
 @pytest.mark.parametrize(
     ("argv", "method", "params", "output"),
     [
-        (["setup"], "xmos.setup", {}, "True"),
-        (["read-firmware"], "xmos.get_firmware", {}, "v1.2.3"),
+        (["setup"], "setup", {}, "True"),
+        (["read-firmware"], "get_firmware", {}, "v1.2.3"),
         (
             ["read-status"],
-            "xmos.get_status",
+            "get_status",
             {},
             "device_status=0x01 gpio_a=0x02 gpio_b=0x03",
         ),
         (
             ["set-mic-output", "1", "2"],
-            "xmos.set_mic_output",
+            "set_mic_output",
             {"left": 1, "right": 2},
             "True",
         ),
-        (["run-spi-test"], "xmos.run_spi_test", {}, "True"),
-        (["reset"], "xmos.reset", {}, "True"),
-        (["enable-flashing"], "xmos.enable_flashing", {}, "True"),
-        (["disable-flashing"], "xmos.disable_flashing", {}, "True"),
+        (["reset"], "reset", {}, "True"),
+        (["enable-flashing"], "enable_flashing", {}, "True"),
+        (["disable-flashing"], "disable_flashing", {}, "True"),
         (
             ["flash-firmware", "/tmp/image.bin", "--verify"],
-            "xmos.flash_firmware",
-            {"path": "/tmp/image.bin", "verify": True},
+            "flash_firmware",
+            {"path": Path("/tmp/image.bin"), "verify": True},
             "True",
         ),
     ],
 )
-def test_xmos_commands_use_daemon_rpc(requests, capsys, argv, method, params, output):
+def test_xmos_commands_use_the_public_client(
+    requests, capsys, argv, method, params, output
+):
     args = build_parser().parse_args(argv)
 
     assert xmos_mod._handle(args) == 0

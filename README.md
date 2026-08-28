@@ -238,7 +238,7 @@ sat1 dac volume --dac auto        # Auto-detect (default)
 ### XMOS Commands
 
 ```bash
-sat1 xmos {setup|read-firmware|read-status|reset|enable-flashing|disable-flashing|run-spi-test|set-mic-output|flash-firmware}
+sat1 xmos {setup|read-firmware|read-status|reset|enable-flashing|disable-flashing|set-mic-output|flash-firmware}
 ```
 
 
@@ -250,7 +250,6 @@ sat1 xmos {setup|read-firmware|read-status|reset|enable-flashing|disable-flashin
 | `reset`            | Toggle XMOS reset line            |
 | `enable-flashing`  | Enter firmware flashing mode      |
 | `disable-flashing` | Exit flashing mode                |
-| `run-spi-test`     | Perform SPI loopback test         |
 | `set-mic-output`   | Configure I²S microphone routing |
 | `flash-firmware`   | Flash new XMOS firmware           |
 
@@ -282,16 +281,35 @@ satellite1d --config /path/to/custom.conf
 
 ## Python API
 
-The Python API accesses hardware directly. Use it for daemon development or
-maintenance only; do not use it while `satellite1d` is running.
+The public Python API connects to `satellite1d` through its local Unix socket.
+It does not access hardware directly, so applications can safely use it while
+the daemon owns the HAT.
 
 ```python
-from satellite1 import Sat1Hat
+from satellite1 import AsyncSatellite1Client
 
-hat = Sat1Hat()
-hat.dac.set_volume(0.5)
-status = hat.pd.get_status()
+async with AsyncSatellite1Client() as satellite:
+    await satellite.dac.set_volume(0.5, dac="speaker")
+    contract = await satellite.power.get_contract()
+    firmware = await satellite.xmos.get_firmware()
 ```
+
+The client provides `health()`, `satellite.power.get_contract()`, DAC controls,
+and all XMOS operations exposed by the daemon. It requires the same socket access as
+the `sat1` command: add the application user to the `satellite1` group.
+
+### Direct hardware access
+
+Direct hardware modules now live under `satellite1_hw`. They are for daemon
+development and maintenance only; do not use them while `satellite1d` is
+running.
+
+```python
+from satellite1_hw.sat1_hat import XMOS
+```
+
+This is a breaking import rename: replace existing `satellite1.*` direct
+hardware imports with `satellite1_hw.*`.
 
 See the `src/` directory for the full API.
 

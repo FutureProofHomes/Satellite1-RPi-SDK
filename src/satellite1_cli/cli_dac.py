@@ -7,41 +7,56 @@ import asyncio
 import logging
 from pathlib import Path
 import sys
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
-from .client import DEFAULT_SOCKET_PATH, DaemonClient
+from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
 
 log = logging.getLogger(__name__)
 
 
-def _request(args: argparse.Namespace, method: str, **params: Any) -> dict[str, Any]:
-    return asyncio.run(DaemonClient(args.socket).request(method, params))
+T = TypeVar("T")
+
+
+def _request(
+    args: argparse.Namespace, operation: Callable[[AsyncSatellite1Client], Awaitable[T]]
+) -> T:
+    async def run() -> T:
+        async with AsyncSatellite1Client(args.socket) as satellite:
+            return await operation(satellite)
+
+    return asyncio.run(run())
 
 
 def _handle(args: argparse.Namespace) -> int:
     dac = args.dac
     if args.cmd == "setup":
-        print(_request(args, "dac.setup")["ok"])
+        _request(args, lambda satellite: satellite.dac.setup())
+        print(True)
     elif args.cmd == "volume":
-        print(_request(args, "dac.get_volume", dac=dac)["volume"])
+        print(_request(args, lambda satellite: satellite.dac.get_volume(dac)))
     elif args.cmd == "set-volume":
-        print(_request(args, "dac.set_volume", dac=dac, volume=args.volume)["volume"])
+        print(
+            _request(args, lambda satellite: satellite.dac.set_volume(args.volume, dac))
+        )
     elif args.cmd == "mute":
-        print(_request(args, "dac.set_mute", dac=dac, muted=True)["muted"])
+        print(_request(args, lambda satellite: satellite.dac.set_muted(True, dac)))
     elif args.cmd == "unmute":
-        print(_request(args, "dac.set_mute", dac=dac, muted=False)["muted"])
+        print(_request(args, lambda satellite: satellite.dac.set_muted(False, dac)))
     elif args.cmd == "amp-level":
-        print(_request(args, "dac.get_amp_level", dac=dac)["amp_level"])
+        print(_request(args, lambda satellite: satellite.dac.get_amp_level(dac)))
     elif args.cmd == "set-amp-level":
         print(
-            _request(args, "dac.set_amp_level", dac=dac, level=args.level)["amp_level"]
+            _request(
+                args, lambda satellite: satellite.dac.set_amp_level(args.level, dac)
+            )
         )
     elif args.cmd == "plugged-in":
-        print(_request(args, "dac.get_plugged_in")["plugged_in"])
+        print(_request(args, lambda satellite: satellite.dac.is_line_out_plugged_in()))
     elif args.cmd == "status":
-        status = _request(args, "dac.get_status")
-        print(status["line_out"])
-        print(status["speaker"])
+        status = _request(args, lambda satellite: satellite.dac.get_status())
+        print(status.line_out)
+        print(status.speaker)
     else:
         return 2
     return 0

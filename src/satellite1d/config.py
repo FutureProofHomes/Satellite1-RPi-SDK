@@ -6,7 +6,7 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from satellite1.audio_out import (
+from satellite1_hw.audio_out import (
     LineOutDacConfig as SdkLineOutDacConfig,
     SpeakerDacConfig as SdkSpeakerDacConfig,
 )

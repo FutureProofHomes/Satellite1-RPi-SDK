@@ -1,6 +1,6 @@
 import pytest
 
-from satellite1.components.tas2780 import dac as tas_mod
+from satellite1_hw.components.tas2780 import dac as tas_mod
 
 
 class FakeI2c:

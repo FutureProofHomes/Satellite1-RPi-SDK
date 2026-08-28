@@ -28,7 +28,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["satellite1", "satellite1.*", "satellite1_cli", "satellite1_cli.*", "satellite1d", "satellite1d.*"]
+include = ["satellite1", "satellite1.*", "satellite1_cli", "satellite1_cli.*", "satellite1_hw", "satellite1_hw.*", "satellite1d", "satellite1d.*"]
 
 [project.scripts]
 sat1 = "satellite1_cli.cli_sat1:main"

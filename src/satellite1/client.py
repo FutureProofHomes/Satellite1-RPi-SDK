@@ -1,0 +1,297 @@
+"""Typed async client for the local ``satellite1d`` service."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+from typing import Any, Literal
+
+from ._protocol import PROTOCOL_VERSION
+from .models import DacStatus, DaemonInfo, HardwareHealth, PowerContract, XmosStatus
+
+DEFAULT_SOCKET_PATH = Path("/run/satellite1/satellite1d.sock")
+DacName = Literal["auto", "line-out", "speaker"]
+
+
+class Satellite1ClientError(RuntimeError):
+    """Base error raised by the public Satellite1 daemon client."""
+
+
+class Satellite1ConnectionError(Satellite1ClientError):
+    """The local daemon socket could not be used."""
+
+
+class Satellite1ProtocolError(Satellite1ClientError):
+    """The daemon returned an incompatible or malformed response."""
+
+
+class Satellite1DaemonError(Satellite1ClientError):
+    """The daemon rejected a request."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class AsyncSatellite1Client:
+    """A persistent, typed connection to the local Satellite1 daemon."""
+
+    def __init__(
+        self, socket_path: Path | str = DEFAULT_SOCKET_PATH, timeout: float = 10.0
+    ) -> None:
+        self.socket_path = Path(socket_path)
+        self.timeout = timeout
+        self.daemon_info: DaemonInfo | None = None
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
+        self._request_lock = asyncio.Lock()
+        self._next_request_id = 1
+        self.power = _PowerClient(self)
+        self.dac = _DacClient(self)
+        self.xmos = _XmosClient(self)
+
+    async def __aenter__(self) -> "AsyncSatellite1Client":
+        await self.connect()
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.close()
+
+    async def connect(self) -> DaemonInfo:
+        if self._writer is not None:
+            return self.daemon_info or await self._hello()
+        try:
+            async with asyncio.timeout(self.timeout):
+                self._reader, self._writer = await asyncio.open_unix_connection(
+                    self.socket_path
+                )
+        except (OSError, TimeoutError) as exc:
+            raise Satellite1ConnectionError(
+                f"cannot connect to satellite1d at {self.socket_path}: {exc}"
+            ) from exc
+        try:
+            return await self._hello()
+        except Exception:
+            await self.close()
+            raise
+
+    async def close(self) -> None:
+        writer, self._writer, self._reader = self._writer, None, None
+        if writer is not None:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    async def health(self) -> HardwareHealth:
+        result = await self._request("system.health")
+        return HardwareHealth(
+            status=_string(result, "status"),
+            dac=_bool(result, "dac"),
+            xmos=_bool(result, "xmos"),
+        )
+
+    async def _hello(self) -> DaemonInfo:
+        result = await self._request("hello")
+        if _string(result, "service") != "satellite1d":
+            raise Satellite1ProtocolError("socket did not identify as satellite1d")
+        version = _integer(result, "protocol_version")
+        if version != PROTOCOL_VERSION:
+            raise Satellite1ProtocolError(
+                f"unsupported satellite1d protocol version: {version}"
+            )
+        capabilities = result.get("capabilities")
+        if not isinstance(capabilities, list) or not all(
+            isinstance(capability, str) for capability in capabilities
+        ):
+            raise Satellite1ProtocolError("satellite1d returned invalid capabilities")
+        self.daemon_info = DaemonInfo(version, tuple(capabilities))
+        return self.daemon_info
+
+    async def _request(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        if self._reader is None or self._writer is None:
+            raise Satellite1ConnectionError("client is not connected; use 'async with'")
+        async with self._request_lock:
+            request_id = self._next_request_id
+            self._next_request_id += 1
+            try:
+                async with asyncio.timeout(
+                    self.timeout if timeout is None else timeout
+                ):
+                    self._writer.write(
+                        json.dumps(
+                            {"id": request_id, "method": method, "params": params or {}}
+                        ).encode()
+                        + b"\n"
+                    )
+                    await self._writer.drain()
+                    line = await self._reader.readline()
+            except (OSError, TimeoutError) as exc:
+                raise Satellite1ConnectionError(
+                    f"request to satellite1d failed: {exc}"
+                ) from exc
+        if not line:
+            raise Satellite1ConnectionError(
+                "satellite1d closed the connection without a response"
+            )
+        try:
+            response = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise Satellite1ProtocolError("satellite1d returned invalid JSON") from exc
+        if not isinstance(response, dict) or response.get("id") != request_id:
+            raise Satellite1ProtocolError("satellite1d returned an invalid response")
+        error = response.get("error")
+        if error is not None:
+            if not isinstance(error, dict):
+                raise Satellite1ProtocolError("satellite1d returned an invalid error")
+            raise Satellite1DaemonError(
+                _string(error, "code"), _string(error, "message")
+            )
+        result = response.get("result")
+        if not isinstance(result, dict):
+            raise Satellite1ProtocolError("satellite1d returned an invalid response")
+        return result
+
+
+class _PowerClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def get_contract(self) -> PowerContract | None:
+        result = await self._client._request("power.get_contract")
+        if not _bool(result, "available"):
+            return None
+        return PowerContract(_number(result, "voltage"), _number(result, "current"))
+
+
+class _DacClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def setup(self) -> None:
+        _ok(await self._client._request("dac.setup"))
+
+    async def get_volume(self, dac: DacName = "auto") -> float:
+        return _number(
+            await self._client._request("dac.get_volume", {"dac": dac}), "volume"
+        )
+
+    async def set_volume(self, volume: float, dac: DacName = "auto") -> float:
+        return _number(
+            await self._client._request(
+                "dac.set_volume", {"dac": dac, "volume": volume}
+            ),
+            "volume",
+        )
+
+    async def set_muted(self, muted: bool, dac: DacName = "auto") -> bool:
+        return _bool(
+            await self._client._request("dac.set_mute", {"dac": dac, "muted": muted}),
+            "muted",
+        )
+
+    async def get_amp_level(self, dac: DacName = "speaker") -> int:
+        return _integer(
+            await self._client._request("dac.get_amp_level", {"dac": dac}), "amp_level"
+        )
+
+    async def set_amp_level(self, level: int, dac: DacName = "speaker") -> int:
+        return _integer(
+            await self._client._request(
+                "dac.set_amp_level", {"dac": dac, "level": level}
+            ),
+            "amp_level",
+        )
+
+    async def is_line_out_plugged_in(self) -> bool:
+        return _bool(await self._client._request("dac.get_plugged_in"), "plugged_in")
+
+    async def get_status(self) -> DacStatus:
+        result = await self._client._request("dac.get_status")
+        return DacStatus(_string(result, "line_out"), _string(result, "speaker"))
+
+
+class _XmosClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def setup(self) -> None:
+        _ok(await self._client._request("xmos.setup"))
+
+    async def get_firmware(self) -> str:
+        return _string(await self._client._request("xmos.get_firmware"), "firmware")
+
+    async def get_status(self) -> XmosStatus:
+        result = await self._client._request("xmos.get_status")
+        return XmosStatus(
+            _integer(result, "device_status"),
+            _integer(result, "gpio_port_a"),
+            _integer(result, "gpio_port_b"),
+        )
+
+    async def set_mic_output(self, left: int, right: int) -> None:
+        _ok(
+            await self._client._request(
+                "xmos.set_mic_output", {"left": left, "right": right}
+            )
+        )
+
+    async def reset(self) -> None:
+        _ok(await self._client._request("xmos.reset"))
+
+    async def enable_flashing(self) -> bool:
+        return _bool(await self._client._request("xmos.enable_flashing"), "ok")
+
+    async def disable_flashing(self) -> None:
+        _ok(await self._client._request("xmos.disable_flashing"))
+
+    async def flash_firmware(self, path: Path | str, verify: bool = False) -> bool:
+        return _bool(
+            await self._client._request(
+                "xmos.flash_firmware",
+                {"path": str(path), "verify": verify},
+                timeout=720.0,
+            ),
+            "ok",
+        )
+
+
+def _bool(result: dict[str, Any], name: str) -> bool:
+    value = result.get(name)
+    if not isinstance(value, bool):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return value
+
+
+def _integer(result: dict[str, Any], name: str) -> int:
+    value = result.get(name)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return value
+
+
+def _number(result: dict[str, Any], name: str) -> float:
+    value = result.get(name)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return float(value)
+
+
+def _string(result: dict[str, Any], name: str) -> str:
+    value = result.get(name)
+    if not isinstance(value, str):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return value
+
+
+def _ok(result: dict[str, Any]) -> None:
+    if not _bool(result, "ok"):
+        raise Satellite1ProtocolError("satellite1d returned an unsuccessful response")

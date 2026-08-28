@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-from satellite1.audio_out import (
+from satellite1_hw.audio_out import (
     LineOutDac,
     SpeakerDac,
     get_active_dac_id,
@@ -18,9 +18,9 @@ from satellite1.audio_out import (
     get_speaker_dac,
     setup_dacs,
 )
-from satellite1.components.flashrom_wrapper import FlashromError
-from satellite1.components.power_delivery import get_pd_contract
-from satellite1.sat1_hat import XMOS
+from satellite1_hw.components.flashrom_wrapper import FlashromError
+from satellite1_hw.components.power_delivery import get_pd_contract
+from satellite1_hw.sat1_hat import XMOS
 
 from .config import DaemonConfig
 
@@ -118,7 +118,6 @@ class HardwareController:
             "xmos.get_firmware": self._xmos_get_firmware,
             "xmos.get_status": self._xmos_get_status,
             "xmos.set_mic_output": self._xmos_set_mic_output,
-            "xmos.run_spi_test": self._xmos_run_spi_test,
             "xmos.reset": self._xmos_reset,
             "xmos.enable_flashing": self._xmos_enable_flashing,
             "xmos.disable_flashing": self._xmos_disable_flashing,
@@ -279,9 +278,6 @@ class HardwareController:
         if not await self._call(xmos.set_mic_right_output, right):
             raise HardwareError("failed to set right microphone output")
         return {"ok": True}
-
-    async def _xmos_run_spi_test(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"ok": await self._call(self._xmos_device().run_spi_echo_test)}
 
     async def _xmos_reset(self, params: dict[str, Any]) -> dict[str, Any]:
         xmos = self._xmos_device()

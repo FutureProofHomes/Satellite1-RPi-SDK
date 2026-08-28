@@ -4,7 +4,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from .client import DEFAULT_SOCKET_PATH, DaemonClient
+from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
 from .cli_dac import register as register_dacs
 from .cli_xmos import register as register_xmos
 
@@ -31,11 +31,15 @@ def _configure_logging(verbosity: int) -> None:
 
 def register_pd(sp: argparse._SubParsersAction):
     def _handle(args: argparse.Namespace) -> int:
-        result = asyncio.run(DaemonClient(args.socket).request("power.get_contract"))
-        if not result["available"]:
+        async def get_contract():
+            async with AsyncSatellite1Client(args.socket) as satellite:
+                return await satellite.power.get_contract()
+
+        contract = asyncio.run(get_contract())
+        if contract is None:
             print("No power delivery contract")
         else:
-            print(f"{result['voltage']}V @ {result['current']}A")
+            print(f"{contract.voltage}V @ {contract.current}A")
         return 0
 
     pd_parser = sp.add_parser("pd", help="Show current power delivery contract.")

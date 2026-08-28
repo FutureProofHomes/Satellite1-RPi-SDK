@@ -6,50 +6,60 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from .client import DEFAULT_SOCKET_PATH, DaemonClient
+from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
 
 
-def _request(
-    args: argparse.Namespace, method: str, timeout: float = 10.0, **params: object
-) -> dict[str, object]:
-    return asyncio.run(DaemonClient(args.socket, timeout=timeout).request(method, params))
+async def _request(args: argparse.Namespace, operation):
+    async with AsyncSatellite1Client(args.socket) as satellite:
+        return await operation(satellite)
 
 
 def _handle(args: argparse.Namespace) -> int:
     if args.cmd == "setup":
-        print(_request(args, "xmos.setup")["ok"])
+        asyncio.run(_request(args, lambda satellite: satellite.xmos.setup()))
+        print(True)
     elif args.cmd == "read-firmware":
-        print(_request(args, "xmos.get_firmware")["firmware"])
-    elif args.cmd == "read-status":
-        status = _request(args, "xmos.get_status")
         print(
-            "device_status=0x{device_status:02X} gpio_a=0x{gpio_port_a:02X} gpio_b=0x{gpio_port_b:02X}".format(
-                **status
-            )
+            asyncio.run(_request(args, lambda satellite: satellite.xmos.get_firmware()))
+        )
+    elif args.cmd == "read-status":
+        status = asyncio.run(
+            _request(args, lambda satellite: satellite.xmos.get_status())
+        )
+        print(
+            f"device_status=0x{status.device_status:02X} "
+            f"gpio_a=0x{status.gpio_port_a:02X} gpio_b=0x{status.gpio_port_b:02X}"
         )
     elif args.cmd == "set-mic-output":
-        print(
-            _request(args, "xmos.set_mic_output", left=args.left, right=args.right)[
-                "ok"
-            ]
-        )
-    elif args.cmd == "run-spi-test":
-        print(_request(args, "xmos.run_spi_test")["ok"])
-    elif args.cmd == "reset":
-        print(_request(args, "xmos.reset")["ok"])
-    elif args.cmd == "enable-flashing":
-        print(_request(args, "xmos.enable_flashing")["ok"])
-    elif args.cmd == "disable-flashing":
-        print(_request(args, "xmos.disable_flashing")["ok"])
-    elif args.cmd == "flash-firmware":
-        print(
+        asyncio.run(
             _request(
                 args,
-                "xmos.flash_firmware",
-                timeout=720.0,
-                path=str(args.img),
-                verify=args.verify,
-            )["ok"]
+                lambda satellite: satellite.xmos.set_mic_output(args.left, args.right),
+            )
+        )
+        print(True)
+    elif args.cmd == "reset":
+        asyncio.run(_request(args, lambda satellite: satellite.xmos.reset()))
+        print(True)
+    elif args.cmd == "enable-flashing":
+        print(
+            asyncio.run(
+                _request(args, lambda satellite: satellite.xmos.enable_flashing())
+            )
+        )
+    elif args.cmd == "disable-flashing":
+        asyncio.run(_request(args, lambda satellite: satellite.xmos.disable_flashing()))
+        print(True)
+    elif args.cmd == "flash-firmware":
+        print(
+            asyncio.run(
+                _request(
+                    args,
+                    lambda satellite: satellite.xmos.flash_firmware(
+                        args.img, args.verify
+                    ),
+                )
+            )
         )
     else:
         return 2
@@ -64,7 +74,6 @@ def attach_to_parser(parser: argparse.ArgumentParser) -> None:
     commands.add_parser("reset", help="Reset XMOS")
     commands.add_parser("enable-flashing", help="Enter firmware flashing mode")
     commands.add_parser("disable-flashing", help="Exit firmware flashing mode")
-    commands.add_parser("run-spi-test", help="Run SPI echo test")
     mic_output = commands.add_parser(
         "set-mic-output", help="Set I2S microphone outputs"
     )
