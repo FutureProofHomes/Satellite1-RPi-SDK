@@ -59,6 +59,9 @@ class XMOS():
     
     def setup(self, init_spi:bool = True) -> None:
         self._cntrl.open()
+
+    def close(self) -> None:
+        self._cntrl.close()
         
     def read_firmware(self) -> str | None:
         ok, data = self._cntrl.send_cmd( DFU_SERVICER.CMD_GET_VERSION )
@@ -68,16 +71,24 @@ class XMOS():
         return None
     
     def read_status(self) -> StatusRegister | None :
-        ok, data = self._cntrl.send_cmd( MAIN_SERVICER.CMD_NO_OP )
-        if ok and len(data) == XMOS.CNTRL_STATUS_LENGTH:
-            self._status = data
+        ok, _ = self._cntrl.send_cmd(MAIN_SERVICER.CMD_NO_OP)
+        if ok:
+            data = bytes(self._cntrl.dc_status_register_)
+            if len(data) >= XMOS.CNTRL_STATUS_LENGTH:
+                self._status = data
+                return StatusRegister.from_bytes(data)
+        return None
     
     def reset_xmos(self) -> bool:
+        if GPIO is None:
+            raise RuntimeError("RPi.GPIO is not available")
+        self._ensure_gpio_setup()
         GPIO.output(self._reset_bcm_pin, GPIO.HIGH)
         time.sleep(0.1)
         GPIO.output(self._reset_bcm_pin, GPIO.LOW)
         time.sleep(0.1)
         self._status = "DETACHED"
+        return True
 
     def subscribe_status_changes(cb: Callable[[StatusRegister],None] ) -> None:
         pass
@@ -115,18 +126,20 @@ class XMOS():
         log.debug("GPIO %d configured as OUT", self._reset_bcm_pin)
 
     
-    def set_flash_mode(self) -> None:
+    def set_flash_mode(self) -> bool:
         self._ensure_gpio_setup()
         log.info( f"Enabling flashing mode (XMOS in reset state)" )
         GPIO.output(self._reset_bcm_pin, GPIO.HIGH)
+        return True
 
-    def unset_flash_mode(self) -> None:
+    def unset_flash_mode(self) -> bool:
         self._ensure_gpio_setup()
         log.info( f"Disabling flashing mode (re-init XMOS)" )
         GPIO.output(self._reset_bcm_pin, GPIO.LOW)
+        return True
         
     
-    def flash_firmware(self, img: Path, verify: bool = False) -> None:
+    def flash_firmware(self, img: Path, verify: bool = False) -> bool:
         from .components.flashrom_wrapper import Flashrom
 
         # Validate the image before putting the XMOS into reset, so a missing
@@ -149,28 +162,33 @@ class XMOS():
             # next power cycle.
             self.unset_flash_mode()
             self._status = "DETACHED"
+        return True
 
-    def run_spi_echo_test(self):
+    def run_spi_echo_test(self) -> bool:
+        success = True
         for step in range(10):
             rnd_bytes = random.randbytes(128)
             ok, data = self._cntrl.send_cmd( SPI_ECHO_SERVICER.CMD_SET, rnd_bytes)
             if not ok:
-                print( "sending failed")
+                success = False
                 continue
             ok, data = self._cntrl.send_cmd(SPI_ECHO_SERVICER.CMD_GET)
             if not ok or data != rnd_bytes:
-                print( f"step {step} failed:\n  sent: {rnd_bytes}\n  recv: {data}")
+                success = False
                 continue
-            
-            print( f"step: {step} passed")    
+        return success
     
-    def set_mic_left_output(self, out_select:int) -> None:
+    def set_mic_left_output(self, out_select:int) -> bool:
         if 0 <= out_select <= 7 :
-             ok, data = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_LEFT_SELECT, [out_select] )
+             ok, _ = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_LEFT_SELECT, [out_select] )
+             return ok
+        raise ValueError("left microphone output must be from 0 to 7")
     
-    def set_mic_right_output(self, out_select:int) -> None:
+    def set_mic_right_output(self, out_select:int) -> bool:
         if 0 <= out_select <= 7 :
-             ok, data = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_RIGHT_SELECT, [out_select] )
+             ok, _ = self._cntrl.send_cmd( AUDIO_CFG_SERVICER.CMD_MIC_RIGHT_SELECT, [out_select] )
+             return ok
+        raise ValueError("right microphone output must be from 0 to 7")
 
     def _prerelease_str(idx: int) -> str:
         return {1: "alpha", 2: "beta", 3: "rc", 4: "dev"}.get(idx, "")
