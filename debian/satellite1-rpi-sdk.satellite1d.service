@@ -1,0 +1,20 @@
+[Unit]
+Description=Satellite1 hardware daemon
+Wants=dev-i2c\x2d1.device
+After=dev-i2c\x2d1.device sound.target
+
+[Service]
+Type=simple
+User=satellite1d
+Group=satellite1
+SupplementaryGroups=gpio i2c spi
+RuntimeDirectory=satellite1
+RuntimeDirectoryMode=0750
+ExecStart=/opt/satellite1/venv/bin/satellite1d
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
