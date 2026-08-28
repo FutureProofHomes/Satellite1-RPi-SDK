@@ -9,6 +9,7 @@
 /.pytest_cache
 /build/
 /build-*/
+/.debian-build/
 /out/
 overlays/build/
 

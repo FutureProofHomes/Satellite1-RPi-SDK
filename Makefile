@@ -28,7 +28,7 @@ OUT_ROOT      ?= ${PWD}/out
 OUT_DIR       := ${OUT_ROOT}/$(BUILD_KIND)
 DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(DEB_VERSION)_$(ARCH).deb
 
-BUILD_DIR     ?= ${PWD}/build/sdk
+BUILD_DIR     ?= ${PWD}/.debian-build/sdk
 DEBIAN_DIR    := ${BUILD_DIR}/debian
 
 LOCAL_VENV    ?= ${PWD}/.venv
