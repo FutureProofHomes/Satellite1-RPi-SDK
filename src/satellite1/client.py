@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -12,6 +13,8 @@ from .models import DacStatus, DaemonInfo, HardwareHealth, PowerContract, XmosSt
 
 DEFAULT_SOCKET_PATH = Path("/run/satellite1/satellite1d.sock")
 DacName = Literal["auto", "line-out", "speaker"]
+LedColor = tuple[int, int, int]
+LED_RING_PIXEL_COUNT = 24
 
 
 class Satellite1ClientError(RuntimeError):
@@ -50,6 +53,7 @@ class AsyncSatellite1Client:
         self.power = _PowerClient(self)
         self.dac = _DacClient(self)
         self.xmos = _XmosClient(self)
+        self.led = _LedClient(self)
 
     async def __aenter__(self) -> "AsyncSatellite1Client":
         await self.connect()
@@ -91,6 +95,7 @@ class AsyncSatellite1Client:
             status=_string(result, "status"),
             dac=_bool(result, "dac"),
             xmos=_bool(result, "xmos"),
+            led_ring=_optional_bool(result, "led_ring", default=False),
         )
 
     async def _hello(self) -> DaemonInfo:
@@ -264,11 +269,29 @@ class _XmosClient:
         )
 
 
+class _LedClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def render_frame(self, pixels: Sequence[Sequence[int]]) -> None:
+        frame = _normalize_led_frame(pixels)
+        _ok(await self._client._request("led.render", {"pixels": frame}))
+
+    async def clear(self) -> None:
+        await self.render_frame(((0, 0, 0),) * LED_RING_PIXEL_COUNT)
+
+
 def _bool(result: dict[str, Any], name: str) -> bool:
     value = result.get(name)
     if not isinstance(value, bool):
         raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
     return value
+
+
+def _optional_bool(result: dict[str, Any], name: str, *, default: bool) -> bool:
+    if name not in result:
+        return default
+    return _bool(result, name)
 
 
 def _integer(result: dict[str, Any], name: str) -> int:
@@ -295,3 +318,28 @@ def _string(result: dict[str, Any], name: str) -> str:
 def _ok(result: dict[str, Any]) -> None:
     if not _bool(result, "ok"):
         raise Satellite1ProtocolError("satellite1d returned an unsuccessful response")
+
+
+def _normalize_led_frame(pixels: Sequence[Sequence[int]]) -> tuple[LedColor, ...]:
+    if len(pixels) != LED_RING_PIXEL_COUNT:
+        raise ValueError(f"expected {LED_RING_PIXEL_COUNT} pixels, got {len(pixels)}")
+    frame: list[LedColor] = []
+    for index, color in enumerate(pixels):
+        if (
+            not isinstance(color, Sequence)
+            or isinstance(color, (str, bytes))
+            or len(color) != 3
+        ):
+            raise ValueError(f"pixel {index} must contain exactly three RGB channels")
+        red, green, blue = color
+        if any(
+            not isinstance(channel, int)
+            or isinstance(channel, bool)
+            or not 0 <= channel <= 255
+            for channel in color
+        ):
+            raise ValueError(
+                f"pixel {index} RGB channels must be integers from 0 to 255"
+            )
+        frame.append((red, green, blue))
+    return tuple(frame)

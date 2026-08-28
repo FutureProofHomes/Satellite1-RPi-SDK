@@ -21,7 +21,7 @@ class FakeHardware:
         self.calls: list[tuple[str, dict]] = []
 
     async def health(self):
-        return {"status": "healthy", "dac": True, "xmos": True}
+        return {"status": "healthy", "dac": True, "xmos": True, "led_ring": True}
 
     async def dispatch(self, method, params):
         self.calls.append((method, params))
@@ -44,6 +44,7 @@ class FakeHardware:
             "xmos.enable_flashing": {"ok": True},
             "xmos.disable_flashing": {"ok": True},
             "xmos.flash_firmware": {"ok": True},
+            "led.render": {"ok": True},
         }
         if method == "dac.set_volume":
             return {"volume": params["volume"]}
@@ -63,7 +64,9 @@ def test_client_exposes_the_existing_daemon_capabilities():
             async with AsyncSatellite1Client(server.socket_path) as satellite:
                 assert satellite.daemon_info is not None
                 assert "xmos.*" in satellite.daemon_info.capabilities
-                assert (await satellite.health()).dac is True
+                health = await satellite.health()
+                assert health.dac is True
+                assert health.led_ring is True
                 assert (await satellite.power.get_contract()).voltage == 9.0
                 await satellite.dac.setup()
                 assert await satellite.dac.get_volume("speaker") == 0.5
@@ -81,13 +84,16 @@ def test_client_exposes_the_existing_daemon_capabilities():
                 assert await satellite.xmos.enable_flashing() is True
                 await satellite.xmos.disable_flashing()
                 assert await satellite.xmos.flash_firmware("firmware.bin", verify=True)
+                await satellite.led.render_frame([(1, 2, 3)] * 24)
+                await satellite.led.clear()
         finally:
             await server.close()
 
-        assert hardware.calls[-1] == (
+        assert (
             "xmos.flash_firmware",
             {"path": "firmware.bin", "verify": True},
-        )
+        ) in hardware.calls
+        assert hardware.calls[-1] == ("led.render", {"pixels": [[0, 0, 0]] * 24})
 
     asyncio.run(run())
 
@@ -97,6 +103,17 @@ def test_client_requires_a_connection():
         client = AsyncSatellite1Client(_socket_path())
         with pytest.raises(Satellite1ConnectionError, match="not connected"):
             await client.health()
+
+    asyncio.run(run())
+
+
+def test_client_rejects_invalid_led_frames_before_connecting():
+    async def run() -> None:
+        client = AsyncSatellite1Client(_socket_path())
+        with pytest.raises(ValueError, match="expected 24 pixels"):
+            await client.led.render_frame([(0, 0, 0)])
+        with pytest.raises(ValueError, match="RGB channels"):
+            await client.led.render_frame([(0, 0, 256)] * 24)
 
     asyncio.run(run())
 

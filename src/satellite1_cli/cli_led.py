@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from .client import DaemonClient
+from satellite1 import AsyncSatellite1Client
 
 LED_COUNT = 24
 
@@ -73,7 +73,12 @@ def _handle(args: argparse.Namespace) -> int:
         for indexes, color in args.assignments:
             for index in indexes:
                 frame[index] = color
-    asyncio.run(DaemonClient(args.socket).request("led.render", {"pixels": frame}))
+
+    async def render() -> None:
+        async with AsyncSatellite1Client(args.socket) as satellite:
+            await satellite.led.render_frame(frame)
+
+    asyncio.run(render())
     return 0
 
 

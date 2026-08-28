@@ -16,13 +16,21 @@ def normalize_frame(pixels: Sequence[Color], pixel_count: int) -> tuple[Color, .
 
     frame: list[Color] = []
     for index, color in enumerate(pixels):
-        if len(color) != 3:
+        if (
+            not isinstance(color, Sequence)
+            or isinstance(color, (str, bytes))
+            or len(color) != 3
+        ):
             raise ValueError(f"pixel {index} must contain exactly three RGB channels")
         red, green, blue = color
         if any(
-            not isinstance(channel, int) or not 0 <= channel <= 255
+            not isinstance(channel, int)
+            or isinstance(channel, bool)
+            or not 0 <= channel <= 255
             for channel in color
         ):
-            raise ValueError(f"pixel {index} RGB channels must be integers from 0 to 255")
+            raise ValueError(
+                f"pixel {index} RGB channels must be integers from 0 to 255"
+            )
         frame.append((red, green, blue))
     return tuple(frame)

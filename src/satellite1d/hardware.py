@@ -21,6 +21,7 @@ from satellite1_hw.audio_out import (
 from satellite1_hw.components.flashrom_wrapper import FlashromError
 from satellite1_hw.components.led_ring.interface import LedRing
 from satellite1_hw.components.led_ring.rpi_ws281x import RpiWs281xLedRing
+from satellite1_hw.components.led_ring.types import Color, normalize_frame
 from satellite1_hw.components.led_ring.xmos_device_control import (
     XmosDeviceControlLedRing,
 )
@@ -72,6 +73,9 @@ class HardwareController:
         self._xmos: XMOS | None = None
         self._xmos_ready = False
         self._led_ring: LedRing | None = None
+        self._pending_led_frame: tuple[Color, ...] | None = None
+        self._led_frame_ready = asyncio.Event()
+        self._led_render_task: asyncio.Task[None] | None = None
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="satellite1d"
         )
@@ -90,16 +94,21 @@ class HardwareController:
                 await self._wait_for_xmos_ready(self._xmos)
             except Exception:
                 log.exception("XMOS is unavailable during daemon startup")
-            if self._config.led_ring.backend == "xmos_device_control" and not self._xmos_ready:
+            if (
+                self._config.led_ring.backend == "xmos_device_control"
+                and not self._xmos_ready
+            ):
                 log.warning("XMOS LED ring is unavailable during daemon startup")
             else:
                 self._led_ring = self._create_led_ring()
+                self._start_led_renderer()
         except Exception:
             self._ownership_lock.release()
             raise
 
     async def close(self) -> None:
         try:
+            await self._stop_led_renderer()
             if self._xmos is not None:
                 await self._call(self._xmos.close)
         finally:
@@ -142,13 +151,19 @@ class HardwareController:
 
     async def _call(self, function: Callable[..., T], *args: Any) -> T:
         async with self._operation_lock:
-            loop = asyncio.get_running_loop()
-            return await loop.run_in_executor(self._executor, partial(function, *args))
+            return await self._call_unlocked(function, *args)
 
-    async def _wait_for_xmos_ready(self, xmos: XMOS) -> None:
-        await self._call(xmos.setup)
+    async def _call_unlocked(self, function: Callable[..., T], *args: Any) -> T:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, partial(function, *args))
+
+    async def _wait_for_xmos_ready(
+        self, xmos: XMOS, *, lock_held: bool = False
+    ) -> None:
+        call = self._call_unlocked if lock_held else self._call
+        await call(xmos.setup)
         for _ in range(20):
-            if await self._call(xmos.read_firmware) is not None:
+            if await call(xmos.read_firmware) is not None:
                 self._xmos_ready = True
                 return
             await asyncio.sleep(0.1)
@@ -187,6 +202,46 @@ class HardwareController:
         if self._led_ring is None:
             raise HardwareError("LED ring hardware is unavailable")
         return self._led_ring
+
+    def _disable_xmos_led_ring(self) -> None:
+        if self._config.led_ring.backend == "xmos_device_control":
+            self._led_ring = None
+
+    def _restore_xmos_led_ring(self) -> None:
+        if self._config.led_ring.backend == "xmos_device_control":
+            self._led_ring = self._create_led_ring()
+            self._start_led_renderer()
+
+    def _start_led_renderer(self) -> None:
+        if self._led_render_task is None:
+            self._led_render_task = asyncio.create_task(
+                self._render_pending_led_frames(), name="satellite1d-led-renderer"
+            )
+
+    async def _stop_led_renderer(self) -> None:
+        if self._led_render_task is None:
+            return
+        self._led_render_task.cancel()
+        try:
+            await self._led_render_task
+        except asyncio.CancelledError:
+            pass
+        self._led_render_task = None
+
+    async def _render_pending_led_frames(self) -> None:
+        while True:
+            await self._led_frame_ready.wait()
+            try:
+                async with self._operation_lock:
+                    # Select the frame after waiting for hardware so a newer pending
+                    # frame supersedes one that became stale during lock contention.
+                    frame = self._pending_led_frame
+                    self._pending_led_frame = None
+                    self._led_frame_ready.clear()
+                    if frame is not None:
+                        await self._call_unlocked(self._led_device().render, frame)
+            except Exception:
+                log.exception("LED frame rendering failed")
 
     @staticmethod
     def _string(params: dict[str, Any], name: str) -> str:
@@ -272,9 +327,10 @@ class HardwareController:
     async def _xmos_setup(self, params: dict[str, Any]) -> dict[str, Any]:
         xmos = self._xmos or XMOS()
         self._xmos = xmos
-        await self._wait_for_xmos_ready(xmos)
-        if self._config.led_ring.backend == "xmos_device_control":
-            self._led_ring = self._create_led_ring()
+        async with self._operation_lock:
+            self._disable_xmos_led_ring()
+            await self._wait_for_xmos_ready(xmos, lock_held=True)
+            self._restore_xmos_led_ring()
         return {"ok": True}
 
     async def _xmos_get_firmware(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -305,21 +361,29 @@ class HardwareController:
 
     async def _xmos_reset(self, params: dict[str, Any]) -> dict[str, Any]:
         xmos = self._xmos_device()
-        await self._call(xmos.close)
-        if not await self._call(xmos.reset_xmos):
-            raise HardwareError("failed to reset XMOS")
-        await self._wait_for_xmos_ready(xmos)
+        async with self._operation_lock:
+            self._disable_xmos_led_ring()
+            await self._call_unlocked(xmos.close)
+            if not await self._call_unlocked(xmos.reset_xmos):
+                raise HardwareError("failed to reset XMOS")
+            await self._wait_for_xmos_ready(xmos, lock_held=True)
+            self._restore_xmos_led_ring()
         return {"ok": True}
 
     async def _xmos_enable_flashing(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"ok": await self._call(self._xmos_device().set_flash_mode)}
+        async with self._operation_lock:
+            self._disable_xmos_led_ring()
+            return {"ok": await self._call_unlocked(self._xmos_device().set_flash_mode)}
 
     async def _xmos_disable_flashing(self, params: dict[str, Any]) -> dict[str, Any]:
         xmos = self._xmos_device()
-        await self._call(xmos.close)
-        if not await self._call(xmos.unset_flash_mode):
-            raise HardwareError("failed to disable XMOS flashing mode")
-        await self._wait_for_xmos_ready(xmos)
+        async with self._operation_lock:
+            self._disable_xmos_led_ring()
+            await self._call_unlocked(xmos.close)
+            if not await self._call_unlocked(xmos.unset_flash_mode):
+                raise HardwareError("failed to disable XMOS flashing mode")
+            await self._wait_for_xmos_ready(xmos, lock_held=True)
+            self._restore_xmos_led_ring()
         return {"ok": True}
 
     async def _xmos_flash_firmware(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -328,20 +392,25 @@ class HardwareController:
         if not isinstance(verify, bool):
             raise ValueError("verify must be a boolean")
         xmos = self._xmos_device()
-        await self._call(xmos.close)
-        try:
-            ok = await self._call(xmos.flash_firmware, path, verify)
-        except FlashromError as exc:
-            details = (exc.stderr or exc.stdout).strip()
-            message = f"{exc}: {details}" if details else str(exc)
-            raise HardwareError(message) from exc
-        finally:
-            await self._wait_for_xmos_ready(xmos)
+        async with self._operation_lock:
+            self._disable_xmos_led_ring()
+            await self._call_unlocked(xmos.close)
+            try:
+                ok = await self._call_unlocked(xmos.flash_firmware, path, verify)
+            except FlashromError as exc:
+                details = (exc.stderr or exc.stdout).strip()
+                message = f"{exc}: {details}" if details else str(exc)
+                raise HardwareError(message) from exc
+            finally:
+                await self._wait_for_xmos_ready(xmos, lock_held=True)
+                self._restore_xmos_led_ring()
         return {"ok": ok}
 
     async def _led_render(self, params: dict[str, Any]) -> dict[str, Any]:
         pixels = params.get("pixels")
         if not isinstance(pixels, list):
             raise ValueError("pixels must be an array")
-        await self._call(self._led_device().render, pixels)
+        frame = normalize_frame(pixels, self._led_device().pixel_count)
+        self._pending_led_frame = frame
+        self._led_frame_ready.set()
         return {"ok": True}

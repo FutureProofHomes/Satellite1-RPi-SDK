@@ -316,7 +316,9 @@ Supported values are:
 - `rpi_ws281x`: Drives the ring through a fixed-purpose native PWM/DMA renderer.
 
 The daemon owns this machine configuration and renders frames through the
-selected backend. Restart it after changing the setting.
+selected backend. Multiple clients may submit frames; the newest pending frame
+replaces an older pending frame, so animations stay current rather than
+building a backlog. Restart the daemon after changing the setting.
 
 The native renderer is root-owned and has only the raw-I/O capabilities needed
 by the upstream `rpi_ws281x` C implementation; `satellite1d` itself remains
@@ -344,8 +346,19 @@ async with AsyncSatellite1Client() as satellite:
 ```
 
 The client provides `health()`, `satellite.power.get_contract()`, DAC controls,
-and all XMOS operations exposed by the daemon. It requires the same socket access as
-the `sat1` command: add the application user to the `satellite1` group.
+all XMOS operations exposed by the daemon, and LED-frame rendering. It requires
+the same socket access as the `sat1` command: add the application user to the
+`satellite1` group.
+
+```python
+frame = [(0, 0, 0)] * 24
+frame[0] = (0, 90, 255)
+async with AsyncSatellite1Client() as satellite:
+    await satellite.led.render_frame(frame)
+```
+
+`examples/led_ring_animations.py` contains pulse and rainbow effects using the
+public client. Run it as an authorized user, not with `sudo`.
 
 ### Direct hardware access
 

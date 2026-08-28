@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from satellite1.components.led_ring import LedRingError
-from satellite1.components.led_ring.rpi_ws281x import (
+from satellite1_hw.components.led_ring import LedRingError
+from satellite1_hw.components.led_ring.rpi_ws281x import (
     DEFAULT_RENDERER_PATH,
     RpiWs281xLedRing,
     SATELLITE1_LED_COUNT,
 )
-from satellite1.components.led_ring.xmos_device_control import (
+from satellite1_hw.components.led_ring.xmos_device_control import (
     CMD_WRITE_LED_RING_RAW,
     LED_RESOURCE_ID,
     XmosDeviceControlLedRing,
@@ -69,7 +69,9 @@ def test_rpi_backend_sends_a_complete_rgb_frame_to_the_helper(monkeypatch):
         calls.append((args, kwargs))
         return subprocess.CompletedProcess(args, 0, stderr=b"")
 
-    monkeypatch.setattr("satellite1.components.led_ring.rpi_ws281x.subprocess.run", run)
+    monkeypatch.setattr(
+        "satellite1_hw.components.led_ring.rpi_ws281x.subprocess.run", run
+    )
     ring = RpiWs281xLedRing(Path("renderer"))
     frame = [(0, 0, 0)] * ring.pixel_count
     frame[0] = (1, 2, 3)
@@ -92,8 +94,10 @@ def test_rpi_backend_sends_a_complete_rgb_frame_to_the_helper(monkeypatch):
 
 def test_rpi_backend_reports_helper_failure(monkeypatch):
     monkeypatch.setattr(
-        "satellite1.components.led_ring.rpi_ws281x.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, stderr=b"DMA error"),
+        "satellite1_hw.components.led_ring.rpi_ws281x.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 1, stderr=b"DMA error"
+        ),
     )
 
     with pytest.raises(LedRingError, match="DMA error"):

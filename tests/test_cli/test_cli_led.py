@@ -12,12 +12,18 @@ def _capture_request(monkeypatch):
     class FakeClient:
         def __init__(self, socket):
             self.socket = socket
+            self.led = self
 
-        async def request(self, method, params):
-            requests.append((self.socket, method, params))
-            return {"ok": True}
+        async def __aenter__(self):
+            return self
 
-    monkeypatch.setattr(cli_led, "DaemonClient", FakeClient)
+        async def __aexit__(self, *args):
+            pass
+
+        async def render_frame(self, pixels):
+            requests.append((self.socket, pixels))
+
+    monkeypatch.setattr(cli_led, "AsyncSatellite1Client", FakeClient)
     return requests
 
 
@@ -40,13 +46,10 @@ def test_set_color_sends_a_full_frame_to_the_daemon(monkeypatch):
     assert requests == [
         (
             socket,
-            "led.render",
-            {
-                "pixels": [
-                    (1, 2, 3) if index in {0, 4, 9, 10, 11, 12} else (0, 0, 0)
-                    for index in range(24)
-                ]
-            },
+            [
+                (1, 2, 3) if index in {0, 4, 9, 10, 11, 12} else (0, 0, 0)
+                for index in range(24)
+            ],
         )
     ]
 
@@ -62,12 +65,8 @@ def test_set_pixels_supports_multiple_colors_and_later_overrides(monkeypatch):
         )
     )
 
-    assert requests[0][2]["pixels"] == [
-        (255, 0, 0)
-        if index == 0
-        else (0, 16, 0)
-        if index in {4, 9, 10}
-        else (0, 0, 0)
+    assert requests[0][1] == [
+        (255, 0, 0) if index == 0 else (0, 16, 0) if index in {4, 9, 10} else (0, 0, 0)
         for index in range(24)
     ]
 
@@ -77,7 +76,7 @@ def test_clear_sends_a_black_frame(monkeypatch):
 
     cli_led._handle(argparse.Namespace(socket=Path("daemon.sock"), cmd="clear"))
 
-    assert requests[0][2]["pixels"] == [(0, 0, 0)] * 24
+    assert requests[0][1] == [(0, 0, 0)] * 24
 
 
 def test_set_color_parser_requires_valid_rgb_channels():

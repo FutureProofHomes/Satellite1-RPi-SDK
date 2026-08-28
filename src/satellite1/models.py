@@ -16,6 +16,7 @@ class HardwareHealth:
     status: str
     dac: bool
     xmos: bool
+    led_ring: bool = False
 
 
 @dataclass(frozen=True)
