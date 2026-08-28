@@ -1,5 +1,7 @@
-"""Pydantic models for CLI input and TOML configuration."""
+"""Machine configuration owned by the Satellite1 daemon."""
 
+from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,6 +10,8 @@ from satellite1.audio_out import (
     LineOutDacConfig as SdkLineOutDacConfig,
     SpeakerDacConfig as SdkSpeakerDacConfig,
 )
+
+from .config_load import load_from_toml
 
 
 class DacConfig(BaseModel):
@@ -56,3 +60,18 @@ class SpeakerDacConfig(DacConfig):
             channel=self.channel,
             amp_level=self.amp_level,
         )
+
+
+@dataclass(frozen=True)
+class DaemonConfig:
+    """Effective hardware configuration loaded once at daemon startup."""
+
+    line_out: LineOutDacConfig
+    speaker: SpeakerDacConfig
+
+
+def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
+    return DaemonConfig(
+        line_out=load_from_toml(LineOutDacConfig, config_path=config_path),
+        speaker=load_from_toml(SpeakerDacConfig, config_path=config_path),
+    )

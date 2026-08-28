@@ -157,7 +157,10 @@ class Flashrom:
 
     def write(self, image: Path | str, *, verify: bool = True, chip: str | None = None) -> None:
         image = Path(image)
-        cp = self._run(["-w", str(image)] + (["-v"] if verify else []), chip_override=chip)
+        args = ["-w", str(image)]
+        if not verify:
+            args.append("--noverify")
+        cp = self._run(args, chip_override=chip)
         if cp.returncode != 0:
             raise FlashromError("flashrom write failed", returncode=cp.returncode, stdout=cp.stdout, stderr=cp.stderr)
 
@@ -205,9 +208,11 @@ class Flashrom:
             if img_size > size_b:
                 raise ValueError(f"Image ({img_size} B) larger than chip ({size_b} B)")
 
-            # Create padded file (either at padded_out or a temp next to image)
+            # Use a writable temporary file unless the caller supplies a path.
             if padded_out is None:
-                padded_out = image.with_suffix(image.suffix + ".padded.bin")
+                fd, path = tempfile.mkstemp(prefix="flashrom_padded_", suffix=".bin")
+                os.close(fd)
+                padded_out = Path(path)
             self._pad_file(image, padded_out, size_b)
             try:
                 self.write(padded_out, verify=verify, chip=chip)
@@ -236,8 +241,8 @@ class Flashrom:
 
         try:
             args = ["-l", str(layout_path), "--include", "factory", "-w", str(image)]
-            if verify:
-                args.append("-v")
+            if not verify:
+                args.append("--noverify")
             cp = self._run(args, chip_override=chip)
             if cp.returncode != 0:
                 raise FlashromError("flashrom regioned write failed", returncode=cp.returncode, stdout=cp.stdout, stderr=cp.stderr)

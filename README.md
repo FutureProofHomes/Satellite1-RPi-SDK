@@ -11,8 +11,8 @@ Python library and CLI tools for controlling the Satellite1 Raspberry Pi HAT.
 The `satellite1-rpi` distribution provides:
 
 - Python SDK for interacting with the Satellite1 hardware (DAC, XMOS, USB-C PD)
-- Optional command-line interface (`sat1`) for hardware control
-- Systemd service for automatic DAC initialization at boot
+- Command-line interface (`sat1`) for hardware control
+- `satellite1d` systemd daemon for hardware ownership and startup
 
 ## Installation
 
@@ -21,16 +21,27 @@ The `satellite1-rpi` distribution provides:
 Install the SDK package:
 
 ```bash
-sudo dpkg -i satellite1-rpi-sdk_0.1.5_arm64.deb
+sudo dpkg -i satellite1-rpi-sdk_<version>_arm64.deb
 ```
 
 This creates:
 
 - Python virtual environment at `/opt/satellite1/venv`
-- CLI binaries (`sat1`, `sat1-dac`, `sat1-xmos`) in `/usr/bin/`
-- `satellite1-init.service` to initialize DAC at boot
+- CLI binaries (`sat1`, `sat1-dac`, `sat1-speaker`, `sat1-lineout`, and
+  `sat1-xmos`) and `satellite1d` in `/usr/bin/`
+- `satellite1d.service` to own hardware and initialize DAC at boot
 
 No reboot required.
+
+The CLI connects through a group-owned daemon socket. Add an interactive user
+to `satellite1`, then log out and back in before using `sat1`:
+
+```bash
+sudo usermod -aG satellite1 "$USER"
+```
+
+XMOS firmware operations run through the daemon's SPI access and do not need
+`sudo`. Firmware images must be readable by the `satellite1d` service user.
 
 ### 4. Verify installation
 
@@ -149,13 +160,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Install the command-line interface when it is needed:
-
-```bash
-pip install -e ".[cli]"
-```
-
-For SDK and CLI development, install the development extra:
+For daemon and CLI development, install the development extra:
 
 ```bash
 pip install -e ".[dev]"
@@ -184,14 +189,14 @@ The `sat1` command provides unified control over Satellite1 hardware subsystems.
 ### Global options
 
 ```bash
-sat1 [-h] [--config CONFIG] [-v] {dac,xmos,pd} ...
+sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
 ```
 
 
 | Option            | Description                                                |
 | ------------------- | ------------------------------------------------------------ |
 | `-h`, `--help`    | Show help message                                          |
-| `--config FILE`   | Custom TOML configuration (default:`/etc/satellite1.conf`) |
+| `--socket FILE`   | Daemon Unix socket (default: `/run/satellite1/satellite1d.sock`) |
 | `-v`, `--verbose` | Increase verbosity                                         |
 
 ### Subcommands
@@ -230,26 +235,6 @@ sat1 dac volume --dac speaker     # Built-in speaker
 sat1 dac volume --dac auto        # Auto-detect (default)
 ```
 
-#### Line-out Options
-
-```bash
---line-out-enabled / --no-line-out-enabled
---line-out-startup-volume <0..1>
---line-out-startup-muted / --no-line-out-startup-muted
---line-out-restore-on-startup / --no-line-out-restore-on-startup
-```
-
-#### Speaker Options
-
-```bash
---speaker-enabled / --no-speaker-enabled
---speaker-startup-volume <0..1>
---speaker-startup-muted / --no-speaker-startup-muted
---speaker-restore-on-startup / --no-speaker-restore-on-startup
---speaker-channel {left,right,dwn_mix}
---speaker-amp-level <int>  # Amplifier gain (0–31)
-```
-
 ### XMOS Commands
 
 ```bash
@@ -279,15 +264,26 @@ Shows the current USB-C Power Delivery contract: voltage, current, maximum power
 
 ## Configuration
 
-The CLI reads configuration from `/etc/satellite1.conf` by default (TOML format).
+`satellite1d` reads machine configuration from `/etc/satellite1.conf` by default
+(TOML format). The CLI sends requests to the daemon socket and does not load
+hardware configuration. Missing configuration sections use their model defaults.
+
+Restart the daemon after changing the machine configuration:
+
+```bash
+sudo systemctl restart satellite1d
+```
 
 Override with:
 
 ```bash
-sat1 --config /path/to/custom.conf dac volume
+satellite1d --config /path/to/custom.conf
 ```
 
 ## Python API
+
+The Python API accesses hardware directly. Use it for daemon development or
+maintenance only; do not use it while `satellite1d` is running.
 
 ```python
 from satellite1 import Sat1Hat
@@ -301,10 +297,10 @@ See the `src/` directory for the full API.
 
 ## Systemd Service
 
-The `satellite1-init.service` runs once at boot to initialize the DAC. View logs with:
+The `satellite1d.service` owns hardware and runs continuously. View logs with:
 
 ```bash
-sudo journalctl -u satellite1-init -f
+sudo journalctl -u satellite1d -f
 ```
 
 ## License

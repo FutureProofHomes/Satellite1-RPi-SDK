@@ -1,200 +1,97 @@
+"""Socket-only DAC commands for the Satellite1 daemon."""
+
+from __future__ import annotations
+
 import argparse
-from pathlib import Path
-from typing import Any, TYPE_CHECKING, TypeAlias, Literal
+import asyncio
 import logging
+from pathlib import Path
 import sys
+from typing import Any
 
-from .pydantic_argparse import add_pydantic_overrides, collect_overrides
-from .config_load import load_from_toml
+from .client import DEFAULT_SOCKET_PATH, DaemonClient
 
-from .config import (
-    LineOutDacConfig,
-    SpeakerDacConfig,
-)
-from satellite1.audio_out import (
-    get_active_dac_id,
-    get_lineout_dac, 
-    get_speaker_dac, 
-    setup_dacs
-)
 log = logging.getLogger(__name__)
 
-LINE_OUT_PREFIX = "line-out"
-SPEAKER_PREFIX = "speaker"
 
-if TYPE_CHECKING:
-    from satellite1.components.dac import DAC
+def _request(args: argparse.Namespace, method: str, **params: Any) -> dict[str, Any]:
+    return asyncio.run(DaemonClient(args.socket).request(method, params))
 
 
 def _handle(args: argparse.Namespace) -> int:
-    """Dispatch DAC subcommands."""
-    overrides: dict[str,Any] = collect_overrides(args, LineOutDacConfig, prefix=LINE_OUT_PREFIX)
-    log.debug("Line-out overrides from CLI: %s", overrides)
-    
-    spk_ovr: dict[str,Any] = collect_overrides(args, SpeakerDacConfig, prefix=SPEAKER_PREFIX)
-    log.debug("Speaker overrides from CLI: %s", spk_ovr)
-    overrides.update(spk_ovr)
-
-    cfg_line = load_from_toml(LineOutDacConfig, config_path=args.config, overrides=overrides)
-    log.debug("Effective LineDac config: %s", cfg_line.model_dump())
-
-    cfg_spk = load_from_toml(SpeakerDacConfig, config_path=args.config, overrides=overrides)
-    log.debug("Effective SpkDac config: %s", cfg_spk.model_dump())
-
-    line_out_dac = get_lineout_dac(cfg_line.to_sdk())
-    speaker_dac = get_speaker_dac(cfg_spk.to_sdk())
-    
-    dac_key: str = args.dac
-    if dac_key == 'auto':
-        dac_key = get_active_dac_id(line_out_dac, speaker_dac)
-    
+    dac = args.dac
     if args.cmd == "setup":
-        ok = setup_dacs(line_out_dac, speaker_dac)
-        log.info("DAC setup: %s", ok)
-        print(ok)
-        return 0
-    
-    if dac_key is None:
-        raise SystemExit(f"Both DACs are disabled. Line-out plugged in?" )
-    
-    
-    active_dac: DAC 
-    if dac_key == "line-out":
-        active_dac = line_out_dac
-    elif dac_key == "speaker":
-        active_dac = speaker_dac
+        print(_request(args, "dac.setup")["ok"])
+    elif args.cmd == "volume":
+        print(_request(args, "dac.get_volume", dac=dac)["volume"])
+    elif args.cmd == "set-volume":
+        print(_request(args, "dac.set_volume", dac=dac, volume=args.volume)["volume"])
+    elif args.cmd == "mute":
+        print(_request(args, "dac.set_mute", dac=dac, muted=True)["muted"])
+    elif args.cmd == "unmute":
+        print(_request(args, "dac.set_mute", dac=dac, muted=False)["muted"])
+    elif args.cmd == "amp-level":
+        print(_request(args, "dac.get_amp_level", dac=dac)["amp_level"])
+    elif args.cmd == "set-amp-level":
+        print(
+            _request(args, "dac.set_amp_level", dac=dac, level=args.level)["amp_level"]
+        )
+    elif args.cmd == "plugged-in":
+        print(_request(args, "dac.get_plugged_in")["plugged_in"])
+    elif args.cmd == "status":
+        status = _request(args, "dac.get_status")
+        print(status["line_out"])
+        print(status["speaker"])
     else:
-        raise SystemExit(f"Unsupported DAC selector: {dac_key!r}")
-    
-    if not active_dac.enabled:
-        raise SystemExit(f"{active_dac} not found or disabled." )
-    
-    if args.cmd == "volume":
-        val = active_dac.volume
-        log.info( f"Current {dac_key} volume: %.3f", val)
-        print(val)
-        return 0
-    if args.cmd == "set-volume":
-        if not active_dac.set_volume(args.volume):
-            raise SystemExit(f"Failed to set {dac_key} volume")
-        val = active_dac.volume
-        log.info(f"Set {dac_key} volume to {val}")
-        print(val)
-        return 0
-    if args.cmd == "amp-level":
-        if not hasattr(active_dac, "amp_level"):
-            raise SystemExit("amp-level is only supported by speaker DAC")
-        level = active_dac.amp_level
-        log.info("Current %s amp level: %d", dac_key, level)
-        print(level)
-        return 0
-    if args.cmd == "set-amp-level":
-        set_amp_level = getattr(active_dac, "set_amp_level", None)
-        if set_amp_level is None:
-            raise SystemExit("amp-level is only supported by speaker DAC")
-        if not set_amp_level(args.level):
-            raise SystemExit(f"Failed to set {dac_key} amp level")
-        level = getattr(active_dac, "amp_level", args.level)
-        log.info("Set %s amp level to %d", dac_key, level)
-        print(level)
-        return 0
-    if args.cmd == "mute":
-        state = active_dac.set_mute_on()
-        log.info("Muted: %s", state)
-        print(state)
-        return 0
-    if args.cmd == "unmute":
-        state = active_dac.set_mute_off()
-        log.info("Muted: %s", state)
-        print(state)
-        return 0
-    
-    if args.cmd == "status":
-        print(line_out_dac.report_status())
-        print(speaker_dac.report_status())
-        return 0
-    
-    if args.cmd == "plugged-in":
-        plugged = line_out_dac.plugged_in
-        log.info("Jack plugged in: %s", plugged)
-        print(plugged)
-        return 0
-    
-    return 2
+        return 2
+    return 0
 
-def attach_dac_parser(parser: argparse.ArgumentParser ) -> None:
-    """Add the 'dac' settings and their subcommands to the parent subparsers."""
-    
-    add_pydantic_overrides(parser, LineOutDacConfig, prefix="line-out")
-    add_pydantic_overrides(parser, SpeakerDacConfig, prefix="speaker")
-    
-    parser.add_argument("--dac", choices=["auto", "line-out", "speaker"], default="auto", help="")
-    
-    sp = parser.add_subparsers(dest="cmd", required=True)
-    sp.add_parser("volume", help="Read current volume (0..1)")
-    setv = sp.add_parser("set-volume", help="Set volume [0..1]")
-    setv.add_argument("volume", type=float)
-    sp.add_parser(
-        "amp-level",
-        description="Read speaker amp level register value (0..20; 11..21 dBV, 0.5 dB steps)",
-        help="Read speaker amp level register value (0..20; 11..21 dBV, 0.5 dB steps)",
+
+def attach_dac_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--dac", choices=["auto", "line-out", "speaker"], default="auto"
     )
-    seta = sp.add_parser(
-        "set-amp-level",
-        description="Set speaker amp level register value [0..20] (11..21 dBV, 0.5 dB steps)",
-        help="Set speaker amp level register value [0..20] (11..21 dBV, 0.5 dB steps)",
-    )
-    seta.add_argument("level", type=int)
-    sp.add_parser("mute", help="Mute line-out")
-    sp.add_parser("unmute", help="Unmute line-out")
-    sp.add_parser("setup", help="Initialise the DAC")
-    sp.add_parser("plugged-in", help="Check if jack is plugged in")
-    sp.add_parser("status", help="Get some current state information")
-    
+    commands = parser.add_subparsers(dest="cmd", required=True)
+    commands.add_parser("volume", help="Read current volume (0..1)")
+    set_volume = commands.add_parser("set-volume", help="Set volume [0..1]")
+    set_volume.add_argument("volume", type=float)
+    commands.add_parser("amp-level", help="Read speaker amp level")
+    set_amp_level = commands.add_parser("set-amp-level", help="Set speaker amp level")
+    set_amp_level.add_argument("level", type=int)
+    commands.add_parser("mute", help="Mute output")
+    commands.add_parser("unmute", help="Unmute output")
+    commands.add_parser("setup", help="Initialise DAC hardware")
+    commands.add_parser("plugged-in", help="Check line-out jack state")
+    commands.add_parser("status", help="Get DAC status")
     parser.set_defaults(_handler=_handle)
 
 
-def register(parent: argparse._SubParsersAction, *, name: str = "dac", help: str = "DAC controls"):
-    """
-    Register the DAC component under `parent` subparsers (hub style).
-    """
-    lo_child = parent.add_parser(name, help=help)
-    attach_dac_parser(lo_child)
+def register(
+    parent: argparse._SubParsersAction, *, name: str = "dac", help: str = "DAC controls"
+) -> None:
+    attach_dac_parser(parent.add_parser(name, help=help))
 
 
 def _configure_logging(verbosity: int) -> None:
-    """
-    0 -> WARNING, 1 -> INFO, 2+ -> DEBUG
-    """
-    level = logging.WARNING if verbosity <= 0 else logging.INFO if verbosity == 1 else logging.DEBUG
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname).1s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-        force=True,  # reconfigure if already set
-    )
-    log.debug("Logging configured at level=%s", logging.getLevelName(level))
+    level = logging.WARNING if verbosity == 0 else logging.INFO
+    logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="sat1-line-out", description="Satellite1 Line-out DAC")
-    p.add_argument("--config", type=Path, default=Path("/etc/satellite1.conf"), help="TOML config (default: /etc/satellite1.conf)")
-    p.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v, -vv)")
-    attach_dac_parser(p)
-    
-    args = p.parse_args(argv)
+    parser = argparse.ArgumentParser(
+        prog="sat1-dac", description="Satellite1 DAC controls"
+    )
+    parser.add_argument("--socket", type=Path, default=DEFAULT_SOCKET_PATH)
+    parser.add_argument("-v", "--verbose", action="count", default=0)
+    attach_dac_parser(parser)
+    args = parser.parse_args(argv)
     _configure_logging(args.verbose)
-    log.debug("Args: %s", vars(args))
-    return int(args._handler(args) or 0)
+    return _handle(args)
+
 
 def speaker() -> int:
-    default_args = ["--dac=speaker"]
-    return main(default_args + sys.argv[1:])
+    return main(["--dac=speaker", *sys.argv[1:]])
+
 
 def lineout() -> int:
-    default_args = ["--dac=line-out"]
-    return main(default_args + sys.argv[1:])
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    return main(["--dac=line-out", *sys.argv[1:]])

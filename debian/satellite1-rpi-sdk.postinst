@@ -5,6 +5,14 @@ set -e
 VENVDIR=/opt/satellite1/venv
 WHEELDIR=/usr/share/satellite1/wheels
 
+if ! getent group satellite1 >/dev/null 2>&1; then
+  addgroup --system satellite1
+fi
+
+if ! getent passwd satellite1d >/dev/null 2>&1; then
+  adduser --system --no-create-home --ingroup satellite1 satellite1d
+fi
+
 case "$1" in
   configure|triggered)
     # 1) Create venv if missing
@@ -32,29 +40,26 @@ case "$1" in
       exit 1
     fi
 
-    # 5) Install our wheel with the CLI extra, resolving deps from our wheelhouse.
-    #    Fall back to online install if a dep (e.g. spidev) is absent from the wheelhouse.
-    if ! "$VENVDIR/bin/pip" install --no-index --find-links="$WHEELDIR" --force-reinstall "$WHEEL[cli]"; then
-      echo "postinst: wheelhouse install incomplete, retrying with online index..." >&2
-      echo "retry online..." >&2
-      unset PIP_NO_INDEX
-      "$VENVDIR/bin/pip" install --find-links="$WHEELDIR" --force-reinstall "$WHEEL[cli]"
+    # 5) Install only from the packaged wheelhouse. Missing wheels are a package defect.
+    if ! "$VENVDIR/bin/pip" install --no-index --only-binary=:all: --find-links="$WHEELDIR" --force-reinstall "$WHEEL[daemon]"; then
+      echo "postinst: ERROR: packaged wheelhouse is incomplete or incompatible" >&2
+      exit 1
     fi
 
     # 6) (optional) byte-compile
     "$VENVDIR/bin/python" -m compileall -q "$VENVDIR/lib" || true
 
-    # 7) (optional) systemd reload + enable + start satellite1-init.service
+    # 7) Enable and start the persistent hardware daemon.
     if command -v systemctl >/dev/null 2>&1; then
       systemctl daemon-reload
-      systemctl enable satellite1-init.service
-      systemctl start satellite1-init.service || true
+      systemctl enable satellite1d.service
+      systemctl start satellite1d.service || true
     fi
     ;;
 esac
 
 BIN_DIR=/usr/bin
-WRAPPERS="sat1 sat1-line-out sat1-xmos"
+WRAPPERS="sat1 sat1-dac sat1-speaker sat1-lineout sat1-xmos satellite1d"
 
 ensure_wrapper() {
   name="$1"
@@ -71,11 +76,14 @@ ensure_wrapper() {
       sat1)
         MODULE="satellite1_cli.cli_sat1"
         ;;
-      sat1-line-out)
+      sat1-dac)
         MODULE="satellite1_cli.cli_dac"
         ;;
       sat1-xmos)
         MODULE="satellite1_cli.cli_xmos"
+        ;;
+      satellite1d)
+        MODULE="satellite1d.main"
         ;;
       *)
         MODULE=""

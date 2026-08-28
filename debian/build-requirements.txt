@@ -1,0 +1,6 @@
+pip==26.2.1
+packaging==26.3
+setuptools==84.0.0
+setuptools-scm[simple]==9.2.2
+uv==0.9.16
+wheel==0.48.0

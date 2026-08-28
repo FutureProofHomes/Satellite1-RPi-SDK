@@ -14,7 +14,10 @@ endif
 # Wheelhouse build dirs (throwaway)
 BUILD_VENV   := $(CURDIR)/debian/.build-venv
 WHEELHOUSE   := $(CURDIR)/debian/.wheelhouse
-PRJ_ROOT     := /project 
+VERIFY_VENV  := $(CURDIR)/debian/.verify-venv
+LOCKED_REQUIREMENTS := $(CURDIR)/debian/.daemon-requirements.txt
+PRJ_ROOT     := /project
+TARGET_PYTHON := /usr/bin/python3
 
 # If you add 'dh-sequence-python3' to Build-Depends, you can drop '--with python3'.
 %:
@@ -24,16 +27,26 @@ PRJ_ROOT     := /project
 # (No arch-specific build/install yet)
 override_dh_auto_build-arch:
 	# Fresh build venv
-	rm -rf $(BUILD_VENV)
-	python3 -m venv $(BUILD_VENV)
-	$(BUILD_VENV)/bin/pip install --upgrade 'pip>=23' 'setuptools>=61.0' 'wheel' 'build'
+	rm -rf $(BUILD_VENV) $(VERIFY_VENV) $(LOCKED_REQUIREMENTS)
+	$(TARGET_PYTHON) -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version'
+	$(TARGET_PYTHON) -m venv $(BUILD_VENV)
+	$(BUILD_VENV)/bin/pip install --requirement $(PRJ_ROOT)/debian/build-requirements.txt
 
-	# Build a complete wheelhouse including the CLI extra used by the package service.
+	# Build a complete wheelhouse including the daemon extra used by the package service.
 	# setuptools reuses this directory and otherwise can retain removed Python modules.
 	rm -rf $(PRJ_ROOT)/build
 	rm -rf $(WHEELHOUSE)
 	mkdir -p $(WHEELHOUSE)
-	$(BUILD_VENV)/bin/pip wheel --wheel-dir $(WHEELHOUSE) "$(PRJ_ROOT)[cli]"
+	cd $(PRJ_ROOT) && $(BUILD_VENV)/bin/uv export --locked --extra daemon --no-emit-project --format requirements-txt --output-file $(LOCKED_REQUIREMENTS)
+	$(BUILD_VENV)/bin/pip wheel --no-build-isolation --require-hashes --wheel-dir $(WHEELHOUSE) --requirement $(LOCKED_REQUIREMENTS)
+	$(BUILD_VENV)/bin/pip wheel --no-deps --no-build-isolation --wheel-dir $(WHEELHOUSE) $(PRJ_ROOT)
+
+	# A release must be installable without PyPI or piwheels access on the target ABI.
+	$(TARGET_PYTHON) -m venv $(VERIFY_VENV)
+	$(VERIFY_VENV)/bin/pip install --no-index --only-binary=:all: --find-links=$(WHEELHOUSE) 'satellite1-rpi[daemon]'
+	$(VERIFY_VENV)/bin/pip check
+	$(VERIFY_VENV)/bin/satellite1d --help >/dev/null
+	rm -rf $(VERIFY_VENV) $(LOCKED_REQUIREMENTS)
 
 override_dh_auto_install-arch:
 	SETUPTOOLS_USE_DISTUTILS=stdlib dh_auto_install
@@ -45,8 +58,8 @@ override_dh_auto_install-arch:
 
 # Keep the tree clean between builds
 override_dh_auto_clean:
-	rm -rf $(BUILD_VENV) $(WHEELHOUSE)
+	rm -rf $(BUILD_VENV) $(VERIFY_VENV) $(WHEELHOUSE) $(LOCKED_REQUIREMENTS)
 
 # Don’t start the unit at install time (it will still be enabled)
 override_dh_installsystemd:
-	dh_installsystemd --no-start --name satellite1-init
+	dh_installsystemd --no-start --name satellite1d

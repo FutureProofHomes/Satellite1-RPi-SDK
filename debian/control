@@ -20,8 +20,7 @@ Depends:
   python3-venv, 
   python3-pip, 
   flashrom
-Description: Satellite1 I2S overlay, ALSA config, and boot-time I²C init
- Installs Satellite1 device-tree overlay, ALSA PCM config, and a systemd
- oneshot service that initializes the IO expander and DAC at boot.
-
+Description: Satellite1 hardware daemon and command-line client
+ Installs Satellite1 hardware configuration, a persistent least-privilege
+ daemon, and a command-line client that communicates with the daemon.
 

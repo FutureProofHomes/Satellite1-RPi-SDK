@@ -1,4 +1,5 @@
-# satellite1/config_load.py
+"""TOML loading for daemon-owned machine configuration."""
+
 from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, TypeVar, Iterable
@@ -8,12 +9,13 @@ from pydantic import BaseModel
 DEFAULT_CONF = Path("/etc/satellite1.conf")
 
 DEFAULT_PATHS = [
-    Path.home()/".config"/"satellite1"/"config.toml",
+    Path.home() / ".config" / "satellite1" / "config.toml",
     Path("/etc/satellite1.conf"),
 ]
 
 
 T = TypeVar("T", bound=BaseModel)
+
 
 def _first_existing(paths: Iterable[Path]) -> Path | None:
     for p in paths:
@@ -32,13 +34,18 @@ def _read_toml(path: Path | None) -> Mapping[str, Any]:
     with path.open("rb") as f:
         return tomllib.load(f)
 
+
 def _pick_section(raw: Mapping[str, Any], groups: tuple[str, ...]) -> Mapping[str, Any]:
-    # Try declared groups in order; fall back to whole file (top-level keys) if none match.
+    # Try declared groups in order. A missing named group must not receive
+    # unrelated TOML tables, but ungrouped top-level settings remain supported.
     for g in groups:
         sec = raw.get(g)
         if isinstance(sec, dict):
             return sec
-    return raw
+    if not groups:
+        return raw
+    return {key: value for key, value in raw.items() if not isinstance(value, Mapping)}
+
 
 def load_from_toml(
     model_cls: type[T],
@@ -52,7 +59,8 @@ def load_from_toml(
     If config_path is None, the first existing file from DEFAULT_PATHS is used.
     If model_cls defines CONF_GROUPS = ('line_out_dac',) (or multiple names),
     we select that TOML table; for a single name, both snake and kebab
-    variants are tried (e.g. 'line_out_dac' and 'line-out-dac').
+    variants are tried (e.g. 'line_out_dac' and 'line-out-dac'). If no named
+    section exists, only top-level non-table keys are used.
     """
     cfg = config_path if config_path else _first_existing(DEFAULT_PATHS)
     raw = _read_toml(cfg)

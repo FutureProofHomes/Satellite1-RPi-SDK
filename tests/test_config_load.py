@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, Field, ConfigDict
 
 # Import the generic loader
-from satellite1_cli.config_load import load_from_toml
+from satellite1d.config_load import load_from_toml
 
 
 class DummyConfig(BaseModel):
@@ -26,6 +26,14 @@ class DummyConfig(BaseModel):
     mode: Literal["auto", "manual"] = "auto"
     count: int = 1
     tags: List[str] = Field(default_factory=list)
+
+
+class StrictSectionConfig(BaseModel):
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("led_ring",)
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    brightness: float = 0.5
 
 
 def write_toml(path: Path, content: str) -> None:
@@ -125,6 +133,34 @@ def test_overrides_take_precedence_over_file(tmp_path: Path):
     assert cfg.level == 0.75
     assert cfg.mode == "auto"
     assert cfg.count == 1  # unchanged because override was None
+
+
+def test_missing_named_section_ignores_other_toml_tables(tmp_path: Path):
+    cfg_file = tmp_path / "conf.toml"
+    write_toml(
+        cfg_file,
+        """
+        [line_out]
+        enabled = true
+
+        [speaker]
+        enabled = true
+
+        [xmos]
+
+        [logging]
+        level = "INFO"
+        """,
+    )
+
+    cfg = load_from_toml(
+        StrictSectionConfig,
+        config_path=cfg_file,
+        overrides={"enabled": True},
+    )
+
+    assert cfg.enabled is True
+    assert cfg.brightness == 0.5
 
 
 def test_missing_file_uses_defaults(tmp_path: Path):
