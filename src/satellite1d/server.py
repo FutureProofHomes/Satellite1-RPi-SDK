@@ -75,9 +75,14 @@ class Satellite1dServer:
                     json.dumps(response, separators=(",", ":")).encode() + b"\n"
                 )
                 await writer.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
         finally:
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     async def _handle_message(self, line: bytes) -> dict[str, Any]:
         if len(line) > MAX_MESSAGE_SIZE:

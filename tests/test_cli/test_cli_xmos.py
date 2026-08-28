@@ -9,7 +9,7 @@ import satellite1_cli.cli_xmos as xmos_mod
 def requests(monkeypatch):
     calls = []
 
-    def fake_request(args, method, **params):
+    def fake_request(args, method, timeout=10.0, **params):
         calls.append((method, params))
         results = {
             "xmos.setup": {"ok": True},

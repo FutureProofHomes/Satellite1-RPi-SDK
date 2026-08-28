@@ -1,4 +1,6 @@
 # tests/test_xmos_firmware_parse.py
+import subprocess
+
 import pytest
 
 import satellite1.components.flashrom_wrapper as fw_mod
@@ -54,3 +56,49 @@ def test_flash_firmware_missing_image_never_enters_flash_mode(tmp_path, monkeypa
     with pytest.raises(ValueError):
         x.flash_firmware(tmp_path / "does-not-exist.bin")
     assert calls == []
+
+
+def test_write_image_uses_a_writable_temp_file_for_padding(tmp_path, monkeypatch):
+    payload_dir = tmp_path / "payload"
+    payload_dir.mkdir()
+    image = payload_dir / "firmware.bin"
+    image.write_bytes(b"firmware")
+    payload_dir.chmod(0o555)
+
+    flasher = fw_mod.Flashrom(flashrom_bin="/bin/true")
+    monkeypatch.setattr(flasher, "get_chip_size_bytes", lambda **kwargs: 16)
+    written: list[object] = []
+
+    def write(padded_image, **kwargs):
+        padded_image = type(image)(padded_image)
+        assert padded_image.read_bytes() == b"firmware" + b"\xff" * 8
+        written.append(padded_image)
+
+    monkeypatch.setattr(flasher, "write", write)
+    try:
+        flasher.write_image(image, verify=False)
+    finally:
+        payload_dir.chmod(0o755)
+
+    assert len(written) == 1
+    assert not written[0].exists()
+
+
+def test_flashrom_write_uses_auto_verify_or_noverify(tmp_path, monkeypatch):
+    flasher = fw_mod.Flashrom(flashrom_bin="/bin/true")
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(flasher, "_run", run)
+    image = tmp_path / "firmware.bin"
+
+    flasher.write(image)
+    flasher.write(image, verify=False)
+
+    assert calls == [
+        ["-w", str(image)],
+        ["-w", str(image), "--noverify"],
+    ]

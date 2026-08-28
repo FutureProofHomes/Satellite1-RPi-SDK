@@ -10,9 +10,9 @@ from .client import DEFAULT_SOCKET_PATH, DaemonClient
 
 
 def _request(
-    args: argparse.Namespace, method: str, **params: object
+    args: argparse.Namespace, method: str, timeout: float = 10.0, **params: object
 ) -> dict[str, object]:
-    return asyncio.run(DaemonClient(args.socket).request(method, params))
+    return asyncio.run(DaemonClient(args.socket, timeout=timeout).request(method, params))
 
 
 def _handle(args: argparse.Namespace) -> int:
@@ -44,7 +44,11 @@ def _handle(args: argparse.Namespace) -> int:
     elif args.cmd == "flash-firmware":
         print(
             _request(
-                args, "xmos.flash_firmware", path=str(args.img), verify=args.verify
+                args,
+                "xmos.flash_firmware",
+                timeout=720.0,
+                path=str(args.img),
+                verify=args.verify,
             )["ok"]
         )
     else:

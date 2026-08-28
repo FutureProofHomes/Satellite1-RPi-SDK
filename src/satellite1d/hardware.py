@@ -18,6 +18,7 @@ from satellite1.audio_out import (
     get_speaker_dac,
     setup_dacs,
 )
+from satellite1.components.flashrom_wrapper import FlashromError
 from satellite1.components.power_delivery import get_pd_contract
 from satellite1.sat1_hat import XMOS
 
@@ -310,6 +311,10 @@ class HardwareController:
         await self._call(xmos.close)
         try:
             ok = await self._call(xmos.flash_firmware, path, verify)
+        except FlashromError as exc:
+            details = (exc.stderr or exc.stdout).strip()
+            message = f"{exc}: {details}" if details else str(exc)
+            raise HardwareError(message) from exc
         finally:
             await self._wait_for_xmos_ready(xmos)
         return {"ok": ok}
