@@ -313,10 +313,14 @@ backend = "xmos_device_control"
 Supported values are:
 
 - `xmos_device_control`: Sends 24-pixel frames through the Satellite1 XMOS device-control protocol.
-- `rpi_ws281x`: Drives the ring directly through the Raspberry Pi PWM/DMA backend.
+- `rpi_ws281x`: Drives the ring through a fixed-purpose native PWM/DMA renderer.
 
 The daemon owns this machine configuration and renders frames through the
 selected backend. Restart it after changing the setting.
+
+The native renderer is root-owned and has only the raw-I/O capabilities needed
+by the upstream `rpi_ws281x` C implementation; `satellite1d` itself remains
+unprivileged.
 
 Override with:
 

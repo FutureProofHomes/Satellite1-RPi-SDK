@@ -58,6 +58,7 @@ override_dh_auto_install-arch:
 	  install -d debian/$$pkg/usr/share/satellite1/wheels ; \
 	  cp -a $(WHEELHOUSE)/*.whl debian/$$pkg/usr/share/satellite1/wheels/ ; \
 	  install -D -m 0750 $(NATIVE_HELPER) debian/$$pkg/usr/lib/satellite1/satellite1-ws281x-render ; \
+	  install -D -m 0644 $(PRJ_ROOT)/third_party/rpi_ws281x/LICENSE debian/$$pkg/usr/share/doc/$$pkg/copyright.rpi_ws281x ; \
 	done
 
 
