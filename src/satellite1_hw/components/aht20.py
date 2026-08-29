@@ -1,18 +1,25 @@
+"""Read AHT20 temperature and humidity through the Linux hwmon interface."""
+
 from pathlib import Path
-import time
 
-base = None
-for p in Path("/sys/class/hwmon").glob("hwmon*/name"):
-    if p.read_text().strip() == "aht10":
-        base = p.parent
-        break
-assert base, "AHT hwmon device not found"
+from ..hal.sysfs import sysfs_read_int
 
-t_file = base/"temp1_input"
-h_file = base/"humidity1_input"
+_AHT_HWMON_NAMES = frozenset({"aht10", "aht20"})
 
-for _ in range(5):
-    t = int(t_file.read_text())/1000.0
-    h = int(h_file.read_text())/1000.0
-    print(f"T={t:.3f} °C  RH={h:.3f} %")
-    time.sleep(1)
+
+def find_aht20_hwmon_base() -> Path:
+    """Return the hwmon directory registered by the AHT20 kernel driver."""
+    for path in Path("/sys/class/hwmon").glob("hwmon*/name"):
+        if path.read_text().strip() in _AHT_HWMON_NAMES:
+            return path.parent
+    raise RuntimeError("AHT hwmon device not found")
+
+
+def read_temperature_humidity(base: Path | None = None) -> tuple[float, float]:
+    """Return temperature in Celsius and relative humidity in percent."""
+    hwmon_base = base or find_aht20_hwmon_base()
+    temperature_milli_c = sysfs_read_int(hwmon_base / "temp1_input")
+    humidity_milli_percent = sysfs_read_int(hwmon_base / "humidity1_input")
+    if temperature_milli_c is None or humidity_milli_percent is None:
+        raise RuntimeError("AHT hwmon readings are unavailable")
+    return temperature_milli_c / 1000.0, humidity_milli_percent / 1000.0

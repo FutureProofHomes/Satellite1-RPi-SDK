@@ -13,6 +13,7 @@ from .contracts.events import (
 )
 from .contracts.leds import LedFrame
 from .services.audio import LineOutDacService, SpeakerDacService
+from .services.environment import EnvironmentService
 from .services.led_ring import LedRingService
 from .services.power import PowerDeliveryService
 from .services.xmos import XmosService
@@ -26,12 +27,14 @@ class DaemonCommands:
         speaker: SpeakerDacService,
         xmos: XmosService,
         led_ring: LedRingService | None = None,
+        environment: EnvironmentService | None = None,
     ) -> None:
         self._power = power
         self._line_out = line_out
         self._speaker = speaker
         self._xmos = xmos
         self._led_ring = led_ring
+        self._environment = environment
 
     async def health(self) -> dict[str, Any]:
         xmos = self._xmos.available
@@ -71,6 +74,16 @@ class DaemonCommands:
                     "current": contract.current,
                 }
             )
+        if method == "environment.get_readings":
+            if self._environment is None:
+                raise KeyError(method)
+            readings = await self._environment.get_readings()
+            return {
+                "temperature_c": readings.temperature_c,
+                "humidity_percent": readings.humidity_percent,
+                "ambient_light_channel_0": readings.ambient_light_channel_0,
+                "ambient_light_channel_1": readings.ambient_light_channel_1,
+            }
         if method == "mics.get_muted":
             return {"muted": await self._xmos.get_microphone_mute()}
         if method == "xmos.get_firmware":

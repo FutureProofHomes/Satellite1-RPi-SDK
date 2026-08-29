@@ -13,6 +13,7 @@ from satellite1d.contracts.events import (
 )
 from satellite1d.contracts.power import PowerContract
 from satellite1d.services.audio import LineOutDacService, SpeakerDacService
+from satellite1d.services.environment import EnvironmentService
 from satellite1d.services.gpio import ActionButtonService, XmosResetService
 from satellite1d.services.power import PowerDeliveryService
 from satellite1d.services.xmos import XmosService
@@ -183,6 +184,56 @@ def test_power_delivery_service_reads_a_complete_contract():
         ):
             service = PowerDeliveryService()
             assert await service.get_power_contract() == PowerContract(9.0, 2.0)
+
+    asyncio.run(run())
+
+
+def test_environment_service_reads_both_sensors_independently():
+    class LightSensor:
+        def __init__(self) -> None:
+            self.initialized = False
+
+        def begin(self) -> None:
+            self.initialized = True
+
+        def read_channels(self) -> tuple[int, int]:
+            return 123, 456
+
+    async def run() -> None:
+        light_sensor = LightSensor()
+        service = EnvironmentService(
+            aht20_reader=lambda: (23.5, 45.0),
+            ltr303_factory=lambda: light_sensor,
+        )
+        await service.start()
+
+        assert light_sensor.initialized
+        assert (await service.get_readings()).temperature_c == 23.5
+        assert (await service.get_readings()).humidity_percent == 45.0
+        assert (await service.get_readings()).ambient_light_channel_0 == 123
+        assert (await service.get_readings()).ambient_light_channel_1 == 456
+
+    asyncio.run(run())
+
+
+def test_environment_service_keeps_readings_available_independently():
+    class FailingLightSensor:
+        def begin(self) -> None:
+            raise RuntimeError("missing sensor")
+
+        def read_channels(self) -> tuple[int, int]:
+            raise AssertionError("unreachable")
+
+    async def run() -> None:
+        service = EnvironmentService(
+            aht20_reader=lambda: (23.5, 45.0),
+            ltr303_factory=FailingLightSensor,
+        )
+        await service.start()
+
+        assert (await service.get_readings()).ambient_light_channel_0 is None
+        assert (await service.get_readings()).ambient_light_channel_1 is None
+        assert (await service.get_readings()).temperature_c == 23.5
 
     asyncio.run(run())
 

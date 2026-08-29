@@ -8,6 +8,7 @@ from pathlib import Path
 from satellite1 import DEFAULT_SOCKET_PATH, AsyncSatellite1Client, PowerContract
 
 from .cli_dac import register as register_dacs
+from .cli_environment import register as register_environment
 from .cli_led import register as register_led
 from .cli_xmos import register as register_xmos
 
@@ -72,6 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_xmos(sp)
     register_led(sp)
     register_pd(sp)
+    register_environment(sp)
 
     return p
 
