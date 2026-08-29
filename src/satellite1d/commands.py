@@ -23,7 +23,13 @@ class DaemonCommands:
         self._xmos = xmos
 
     async def health(self) -> dict[str, Any]:
-        return {"status": "healthy", "dac": True, "xmos": True}
+        xmos = self._xmos.available
+        dac = self._line_out.available and self._speaker.available
+        return {
+            "status": "healthy" if xmos and dac else "degraded",
+            "dac": dac,
+            "xmos": xmos,
+        }
 
     async def current_events(self) -> list[DaemonEvent]:
         return [

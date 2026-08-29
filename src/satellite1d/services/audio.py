@@ -48,6 +48,10 @@ class _DacService:
         async with self._lock:
             self._dac = None
 
+    @property
+    def available(self) -> bool:
+        return self._dac is not None
+
     # VolumeController
 
     async def get_volume(self) -> float:
