@@ -17,6 +17,7 @@ from .models import (
     LineOutJackChanged,
     PowerContract,
     Satellite1Event,
+    SpeakerMuteChanged,
     VolumeChanged,
     XmosStatus,
 )
@@ -358,6 +359,8 @@ def _event(value: Any) -> Satellite1Event:
             return ButtonPressed(button)
     if name == "mics.muted_changed":
         return MicMuteChanged(_bool(data, "muted"))
+    if name == "audio.speaker_muted_changed":
+        return SpeakerMuteChanged(_bool(data, "muted"))
     if name == "audio.volume_changed":
         output = _string(data, "output")
         if output in {"line-out", "speaker"}:

@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from satellite1d.contracts.leds import (
     LedFrame,
@@ -19,6 +19,8 @@ class LedRingService:
     def __init__(self, renderer: LedFrameRenderer) -> None:
         self._renderer = renderer
         self._normal_frame = LedFrame.clear()
+        self._active_frame = self._normal_frame
+        self._overlays: dict[str, dict[int, tuple[int, int, int]]] = {}
         self._pending: LedFrame | None = None
         self._pending_ready = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
@@ -48,6 +50,8 @@ class LedRingService:
         self._presentation_id += 1
         self._presentation_priority = 0
         self._normal_frame = LedFrame.clear()
+        self._active_frame = self._normal_frame
+        self._overlays.clear()
         self._pending = None
         self._pending_ready.clear()
         if task is not None:
@@ -70,6 +74,35 @@ class LedRingService:
 
     async def clear(self) -> None:
         await self.render_frame(LedFrame.clear())
+
+    async def set_overlay(
+        self, name: str, pixels: Mapping[int, tuple[int, int, int]]
+    ) -> None:
+        """Reserve pixels that are composited over every rendered frame."""
+        if not self.available:
+            raise LedRingUnavailableError("LED ring renderer is unavailable")
+        if not name:
+            raise ValueError("overlay name must not be empty")
+        if any(
+            not isinstance(index, int)
+            or isinstance(index, bool)
+            or index < 0
+            or index >= len(self._active_frame.pixels)
+            for index in pixels
+        ):
+            raise ValueError("overlay pixel index is outside the LED ring")
+        LedFrame.from_pixels(
+            [pixels.get(index, (0, 0, 0)) for index in range(len(self._active_frame.pixels))]
+        )
+        self._overlays[name] = dict(pixels)
+        self._queue(self._active_frame)
+
+    async def clear_overlay(self, name: str) -> None:
+        """Remove a persistent pixel overlay."""
+        if not self.available:
+            raise LedRingUnavailableError("LED ring renderer is unavailable")
+        if self._overlays.pop(name, None) is not None:
+            self._queue(self._active_frame)
 
     async def show_notification(
         self, frame: LedFrame, *, duration: float, priority: int = 20
@@ -119,7 +152,12 @@ class LedRingService:
         return self._presentation_id
 
     def _queue(self, frame: LedFrame) -> None:
-        self._pending = frame
+        self._active_frame = frame
+        pixels = list(frame.pixels)
+        for overlay in self._overlays.values():
+            for index, color in overlay.items():
+                pixels[index] = color
+        self._pending = LedFrame.from_pixels(pixels)
         self._pending_ready.set()
 
     async def _hold_frame(self, duration: float, presentation_id: int) -> None:

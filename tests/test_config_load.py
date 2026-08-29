@@ -196,6 +196,11 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
         enabled = true
         color = [7, 8, 9]
         frame_interval = 0.05
+
+        [workflows.mute-led]
+        enabled = true
+        mic_muted_color = [10, 11, 12]
+        speaker_muted_color = [13, 14, 15]
         """,
     )
     config = load_daemon_config(cfg_file)
@@ -207,3 +212,6 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
     assert config.jack_led_workflow.enabled
     assert config.jack_led_workflow.color == (7, 8, 9)
     assert config.jack_led_workflow.frame_interval == 0.05
+    assert config.mute_led_workflow.enabled
+    assert config.mute_led_workflow.mic_muted_color == (10, 11, 12)
+    assert config.mute_led_workflow.speaker_muted_color == (13, 14, 15)

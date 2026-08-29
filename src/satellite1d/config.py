@@ -155,6 +155,32 @@ class JackLedWorkflowConfig(BaseModel):
         return color
 
 
+class MuteLedWorkflowConfig(BaseModel):
+    """Optional persistent LED indicators for microphone and speaker mute."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = (
+        "workflows.mute-led",
+        "workflows.mute_led",
+    )
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    mic_muted_color: tuple[int, int, int] = (255, 0, 0)
+    speaker_muted_color: tuple[int, int, int] = (200, 0, 0)
+
+    @field_validator("mic_muted_color", "speaker_muted_color")
+    @classmethod
+    def validate_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+        if any(
+            not isinstance(channel, int)
+            or isinstance(channel, bool)
+            or not 0 <= channel <= 255
+            for channel in color
+        ):
+            raise ValueError("LED color channels must be integers from 0 to 255")
+        return color
+
+
 class LedRingConfig(BaseModel):
     """Optional XMOS-controlled 24-pixel LED ring."""
 
@@ -176,6 +202,7 @@ class DaemonConfig:
     buttons_evdev: ButtonEvdevConfig
     volume_buttons_workflow: VolumeButtonsWorkflowConfig
     jack_led_workflow: JackLedWorkflowConfig
+    mute_led_workflow: MuteLedWorkflowConfig
     led_ring: LedRingConfig
 
 
@@ -190,5 +217,6 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
             VolumeButtonsWorkflowConfig, config_path=config_path
         ),
         jack_led_workflow=load_from_toml(JackLedWorkflowConfig, config_path=config_path),
+        mute_led_workflow=load_from_toml(MuteLedWorkflowConfig, config_path=config_path),
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
     )

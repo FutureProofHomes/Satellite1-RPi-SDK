@@ -18,6 +18,11 @@ class MicMuteChanged:
 
 
 @dataclass(frozen=True)
+class SpeakerMuteChanged:
+    muted: bool
+
+
+@dataclass(frozen=True)
 class VolumeChanged:
     output: AudioOutputId
     volume: float
@@ -33,7 +38,7 @@ class XmosAvailabilityChanged:
     available: bool
 
 
-DaemonEvent: TypeAlias = ButtonPressed | MicMuteChanged | VolumeChanged | LineOutJackChanged | XmosAvailabilityChanged
+DaemonEvent: TypeAlias = ButtonPressed | MicMuteChanged | SpeakerMuteChanged | VolumeChanged | LineOutJackChanged | XmosAvailabilityChanged
 
 
 class EventPublisher(Protocol):

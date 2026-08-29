@@ -160,3 +160,42 @@ def test_higher_priority_notification_cancels_an_animation():
         await service.close()
 
     asyncio.run(run())
+
+
+def test_led_overlays_reserve_only_their_colored_pixels():
+    class Renderer:
+        available = True
+
+        def __init__(self) -> None:
+            self.frames: list[LedFrame] = []
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            self.frames.append(frame)
+
+    async def run() -> None:
+        renderer = Renderer()
+        service = LedRingService(renderer)
+        await service.start()
+        normal = LedFrame.from_pixels([(1, 2, 3)] * 24)
+        notification = LedFrame.from_pixels([(4, 5, 6)] * 24)
+
+        await service.render_frame(normal)
+        await service.set_overlay("microphone-muted", {0: (255, 0, 0)})
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert renderer.frames[-1].pixels[0] == (255, 0, 0)
+        assert renderer.frames[-1].pixels[1] == (1, 2, 3)
+
+        await service.show_notification(notification, duration=0.1)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert renderer.frames[-1].pixels[0] == (255, 0, 0)
+        assert renderer.frames[-1].pixels[1] == (4, 5, 6)
+
+        await service.clear_overlay("microphone-muted")
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert renderer.frames[-1] == notification
+        await service.close()
+
+    asyncio.run(run())

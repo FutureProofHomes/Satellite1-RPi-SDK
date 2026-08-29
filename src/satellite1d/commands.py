@@ -3,7 +3,13 @@
 from pathlib import Path
 from typing import Any
 
-from .contracts.events import DaemonEvent, LineOutJackChanged, MicMuteChanged, VolumeChanged
+from .contracts.events import (
+    DaemonEvent,
+    LineOutJackChanged,
+    MicMuteChanged,
+    SpeakerMuteChanged,
+    VolumeChanged,
+)
 from .contracts.leds import LedFrame
 from .services.audio import LineOutDacService, SpeakerDacService
 from .services.led_ring import LedRingService
@@ -44,6 +50,7 @@ class DaemonCommands:
     async def current_events(self) -> list[DaemonEvent]:
         return [
             MicMuteChanged(await self._xmos.get_microphone_mute()),
+            SpeakerMuteChanged(await self._speaker.is_muted()),
             VolumeChanged("line-out", await self._line_out.get_volume()),
             VolumeChanged("speaker", await self._speaker.get_volume()),
             LineOutJackChanged(await self._line_out.is_jack_plugged_in()),

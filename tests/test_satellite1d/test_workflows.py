@@ -1,7 +1,13 @@
 import asyncio
 
-from satellite1d.contracts.events import ButtonPressed, LineOutJackChanged
+from satellite1d.contracts.events import (
+    ButtonPressed,
+    LineOutJackChanged,
+    MicMuteChanged,
+    SpeakerMuteChanged,
+)
 from satellite1d.workflows.jack_led import JackLedWorkflow
+from satellite1d.workflows.mute_led import MuteLedWorkflow
 from satellite1d.workflows.volume_buttons import VolumeButtonWorkflow
 
 
@@ -105,6 +111,67 @@ def test_jack_led_workflow_plays_the_matching_animation():
         frames, interval = led_ring.animations[-1]
         assert frames[0].pixels[0] == (1, 2, 3)
         assert interval == 0.04
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+
+
+def test_mute_led_workflow_sets_and_clears_transparent_overlays():
+    class LedRing:
+        def __init__(self) -> None:
+            self.overlays = {}
+
+        async def set_overlay(self, name, pixels) -> None:
+            self.overlays[name] = pixels
+
+        async def clear_overlay(self, name) -> None:
+            self.overlays.pop(name, None)
+
+    async def run() -> None:
+        led_ring = LedRing()
+        workflow = MuteLedWorkflow(
+            object(),
+            object(),
+            object(),
+            led_ring,
+            mic_muted_color=(255, 0, 0),
+            speaker_muted_color=(200, 0, 0),
+        )
+        workflow._subscriber = asyncio.Queue()
+        task = asyncio.create_task(workflow._run())
+
+        workflow._subscriber.put_nowait(MicMuteChanged(muted=True))
+        workflow._subscriber.put_nowait(SpeakerMuteChanged(muted=True))
+        await asyncio.sleep(0)
+        assert led_ring.overlays["microphone-muted"] == {
+            0: (255, 0, 0),
+            6: (255, 0, 0),
+            12: (255, 0, 0),
+            18: (255, 0, 0),
+        }
+        assert led_ring.overlays["speaker-muted"] == {
+            2: (200, 0, 0),
+            3: (200, 0, 0),
+            4: (200, 0, 0),
+            8: (200, 0, 0),
+            9: (200, 0, 0),
+            10: (200, 0, 0),
+            14: (200, 0, 0),
+            15: (200, 0, 0),
+            16: (200, 0, 0),
+            20: (200, 0, 0),
+            21: (200, 0, 0),
+            22: (200, 0, 0),
+        }
+
+        workflow._subscriber.put_nowait(MicMuteChanged(muted=False))
+        workflow._subscriber.put_nowait(SpeakerMuteChanged(muted=False))
+        await asyncio.sleep(0)
+        assert not led_ring.overlays
         task.cancel()
         try:
             await task

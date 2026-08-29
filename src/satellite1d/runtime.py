@@ -16,6 +16,7 @@ from .services.led_ring import LedRingService
 from .services.power import PowerDeliveryService
 from .services.xmos import XmosService
 from .workflows.jack_led import JackLedWorkflow
+from .workflows.mute_led import MuteLedWorkflow
 from .workflows.volume_buttons import VolumeButtonWorkflow
 
 DEFAULT_LOCK_PATH = Path("/run/satellite1/hardware.lock")
@@ -68,6 +69,18 @@ class DaemonRuntime:
             if config.jack_led_workflow.enabled and self.led_ring is not None
             else None
         )
+        self.mute_led = (
+            MuteLedWorkflow(
+                self.events,
+                self.xmos,
+                self.speaker,
+                self.led_ring,
+                mic_muted_color=config.mute_led_workflow.mic_muted_color,
+                speaker_muted_color=config.mute_led_workflow.speaker_muted_color,
+            )
+            if config.mute_led_workflow.enabled and self.led_ring is not None
+            else None
+        )
         self.commands = DaemonCommands(
             self.power, self.line_out, self.speaker, self.xmos, self.led_ring
         )
@@ -84,10 +97,10 @@ class DaemonRuntime:
             await self.xmos.start()
             if self.led_ring is not None:
                 await self.led_ring.start()
-            if self.jack_led is not None:
-                await self.jack_led.start()
             if self.xmos.available:
                 await self._start_audio()
+            if self.jack_led is not None:
+                await self.jack_led.start()
             if self._publish_gpio_action:
                 self.action = ActionButtonService(
                     ActionButton(self._gpio_chip), self.events, publish_action=True
@@ -112,6 +125,8 @@ class DaemonRuntime:
             self.events.unsubscribe(self._xmos_availability_subscriber)
             self._xmos_availability_subscriber = None
         await self._stop_audio()
+        if self.mute_led is not None:
+            await self.mute_led.close()
         if self.jack_led is not None:
             await self.jack_led.close()
         if self.led_ring is not None:
@@ -138,6 +153,8 @@ class DaemonRuntime:
     async def _start_audio(self) -> None:
         await self.line_out.start()
         await self.speaker.start()
+        if self.mute_led is not None:
+            await self.mute_led.start()
         if self.volume_buttons is not None:
             await self.volume_buttons.start()
 
