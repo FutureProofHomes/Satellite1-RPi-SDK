@@ -1,5 +1,9 @@
+"""TAS2780 register addresses and bit masks."""
+
+
 class TAS2780_REGS:
     """Register addresses and bit masks for TAS2780."""
+
     PAGE_SELECT = 0x0
     # PAGE 0
     SW_RESET = 0x01  # Software Reset
@@ -12,9 +16,9 @@ class TAS2780_REGS:
 
     CHNL_0 = 0x03  # Y Bridge and Channel settings
     CHNL_0_CDS_MODE_SHIFT = 6
-    CHNL_0_CDS_MODE_MASK = (0x03 << CHNL_0_CDS_MODE_SHIFT)
+    CHNL_0_CDS_MODE_MASK = 0x03 << CHNL_0_CDS_MODE_SHIFT
     CHNL_0_AMP_LEVEL_SHIFT = 1
-    CHNL_0_AMP_LEVEL_MASK = (0x1F << CHNL_0_AMP_LEVEL_SHIFT)
+    CHNL_0_AMP_LEVEL_MASK = 0x1F << CHNL_0_AMP_LEVEL_SHIFT
 
     DC_BLK0 = 0x04  # SAR Filter and DC Path Blocker
     DC_BLK0_VBAT1S_MODE_SHIFT = 7
@@ -26,16 +30,16 @@ class TAS2780_REGS:
 
     TDM_CFG2 = 0x0A  # TDM Configuration 2
     TDM_CFG2_RX_SCFG_SHIFT = 4
-    TDM_CFG2_RX_SCFG_MASK = (3 << TDM_CFG2_RX_SCFG_SHIFT)
-    TDM_CFG2_RX_SCFG__STEREO_DWN_MIX = (3 << TDM_CFG2_RX_SCFG_SHIFT)
-    TDM_CFG2_RX_SCFG__MONO_LEFT = (1 << TDM_CFG2_RX_SCFG_SHIFT)
-    TDM_CFG2_RX_SCFG__MONO_RIGHT = (2 << TDM_CFG2_RX_SCFG_SHIFT)
+    TDM_CFG2_RX_SCFG_MASK = 3 << TDM_CFG2_RX_SCFG_SHIFT
+    TDM_CFG2_RX_SCFG__STEREO_DWN_MIX = 3 << TDM_CFG2_RX_SCFG_SHIFT
+    TDM_CFG2_RX_SCFG__MONO_LEFT = 1 << TDM_CFG2_RX_SCFG_SHIFT
+    TDM_CFG2_RX_SCFG__MONO_RIGHT = 2 << TDM_CFG2_RX_SCFG_SHIFT
     TDM_CFG2_RX_WLEN_SHIFT = 2
-    TDM_CFG2_RX_WLEN_MASK = (3 << TDM_CFG2_RX_WLEN_SHIFT)
-    TDM_CFG2_RX_WLEN__16BIT = (0 << TDM_CFG2_RX_WLEN_SHIFT)
-    TDM_CFG2_RX_WLEN__24BIT = (2 << TDM_CFG2_RX_WLEN_SHIFT)
-    TDM_CFG2_RX_WLEN__32BIT = (3 << TDM_CFG2_RX_WLEN_SHIFT)
-    TDM_CFG2_RX_SLEN_MASK = (3 << 0)
+    TDM_CFG2_RX_WLEN_MASK = 3 << TDM_CFG2_RX_WLEN_SHIFT
+    TDM_CFG2_RX_WLEN__16BIT = 0 << TDM_CFG2_RX_WLEN_SHIFT
+    TDM_CFG2_RX_WLEN__24BIT = 2 << TDM_CFG2_RX_WLEN_SHIFT
+    TDM_CFG2_RX_WLEN__32BIT = 3 << TDM_CFG2_RX_WLEN_SHIFT
+    TDM_CFG2_RX_SLEN_MASK = 3 << 0
     TDM_CFG2_RX_SLEN__32BIT = 2
 
     LIM_MAX_ATTN = 0x0B  # Limiter
@@ -208,24 +212,24 @@ class TAS2780_REGS:
     # PAGE 0xFD
     INIT_3 = 0x3E  # Initialization
 
-    INT_LTCH0_IR_OT = (1 << 0)   # over temp error
-    INT_LTCH0_IR_OC = (1 << 1)   # over current error
-    INT_LTCH0_IR_TDMCE = (1 << 2)  # TDM_CLOCK_ERROR
-    INT_LTCH0_IR_LIMA = (1 << 3)   # limiter active
-    INT_LTCH0_IR_PBIP = (1 << 4)   # PVDD below limiter inflection point
-    INT_LTCH0_IR_LIMMA = (1 << 5)  # limiter max attenuation
-    INT_LTCH0_IR_BOPIH = (1 << 6)  # BOP infinite hold
-    INT_LTCH0_IR_BOPM = (1 << 7)   # due to BOP mute
+    INT_LTCH0_IR_OT = 1 << 0  # over temp error
+    INT_LTCH0_IR_OC = 1 << 1  # over current error
+    INT_LTCH0_IR_TDMCE = 1 << 2  # TDM_CLOCK_ERROR
+    INT_LTCH0_IR_LIMA = 1 << 3  # limiter active
+    INT_LTCH0_IR_PBIP = 1 << 4  # PVDD below limiter inflection point
+    INT_LTCH0_IR_LIMMA = 1 << 5  # limiter max attenuation
+    INT_LTCH0_IR_BOPIH = 1 << 6  # BOP infinite hold
+    INT_LTCH0_IR_BOPM = 1 << 7  # due to BOP mute
 
-    INT_LTCH1_IR_VBATLIM = (1 << 0)   # Gain Limiter interrupt
-    INT_LTCH1_IR_LDMODE = (3 << 3)    # Load Diagnostic mode fault status
-    INT_LTCH1_IR_LDC = (1 << 5)       # Load diagnostic completion
-    INT_LTCH1_IR_OTPCRC = (1 << 6)    # OTP CRC error flag
+    INT_LTCH1_IR_VBATLIM = 1 << 0  # Gain Limiter interrupt
+    INT_LTCH1_IR_LDMODE = 3 << 3  # Load Diagnostic mode fault status
+    INT_LTCH1_IR_LDC = 1 << 5  # Load diagnostic completion
+    INT_LTCH1_IR_OTPCRC = 1 << 6  # OTP CRC error flag
 
-    INT_LTCH1_0_IR_VBAT1S_UVLO = (1 << 5)  # VBAT1S Under Voltage
-    INT_LTCH1_0_IR_PLL_CLK = (1 << 7)      # Internal PLL Clock Error
+    INT_LTCH1_0_IR_VBAT1S_UVLO = 1 << 5  # VBAT1S Under Voltage
+    INT_LTCH1_0_IR_PLL_CLK = 1 << 7  # Internal PLL Clock Error
 
-    INT_LTCH2_IR_PUVLO = (1 << 0)   # PVDD UVLO
-    INT_LTCH2_IR_LDO_OL = (1 << 1)  # Internal VBAT1S LDO Over Load
-    INT_LTCH2_IR_LDO_OV = (1 << 2)  # Internal VBAT1S LDO Over Voltage
-    INT_LTCH2_IR_LDO_UV = (1 << 3)  # Internal VBAT1S LDO Under Voltage
+    INT_LTCH2_IR_PUVLO = 1 << 0  # PVDD UVLO
+    INT_LTCH2_IR_LDO_OL = 1 << 1  # Internal VBAT1S LDO Over Load
+    INT_LTCH2_IR_LDO_OV = 1 << 2  # Internal VBAT1S LDO Over Voltage
+    INT_LTCH2_IR_LDO_UV = 1 << 3  # Internal VBAT1S LDO Under Voltage
