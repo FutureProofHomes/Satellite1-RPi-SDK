@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from satellite1 import DacStatus
 from satellite1_cli import cli_dac as dac_mod
 
 
@@ -12,9 +11,6 @@ def requests(monkeypatch):
     calls = []
 
     class FakeDac:
-        async def setup(self):
-            calls.append(("setup", {}))
-
         async def get_volume(self, dac):
             calls.append(("get_volume", {"dac": dac}))
             return 0.75
@@ -38,10 +34,6 @@ def requests(monkeypatch):
         async def is_line_out_plugged_in(self):
             calls.append(("is_line_out_plugged_in", {}))
             return True
-
-        async def get_status(self):
-            calls.append(("get_status", {}))
-            return DacStatus("line-out status", "speaker status")
 
     class FakeSatellite:
         dac = FakeDac()
@@ -71,7 +63,7 @@ def test_main_builds_socket_only_dac_parser(capsys):
 @pytest.mark.parametrize(
     ("argv", "method", "params", "output"),
     [
-        (["volume"], "get_volume", {"dac": "auto"}, "0.75"),
+        (["--dac", "auto", "volume"], "get_volume", {"dac": "auto"}, "0.75"),
         (
             ["set-volume", "0.33"],
             "set_volume",
@@ -93,7 +85,6 @@ def test_main_builds_socket_only_dac_parser(capsys):
             "12",
         ),
         (["plugged-in"], "is_line_out_plugged_in", {}, "True"),
-        (["setup"], "setup", {}, "True"),
     ],
 )
 def test_dac_commands_use_the_public_client(
@@ -104,11 +95,3 @@ def test_dac_commands_use_the_public_client(
     assert dac_mod._handle(args) == 0
     assert requests == [(method, params)]
     assert capsys.readouterr().out.strip() == output
-
-
-def test_status_uses_the_public_client(requests, capsys):
-    args = build_parser().parse_args(["status"])
-
-    assert dac_mod._handle(args) == 0
-    assert requests == [("get_status", {})]
-    assert capsys.readouterr().out.splitlines() == ["line-out status", "speaker status"]

@@ -15,10 +15,7 @@ async def _request(args: argparse.Namespace, operation):
 
 
 def _handle(args: argparse.Namespace) -> int:
-    if args.cmd == "setup":
-        asyncio.run(_request(args, lambda satellite: satellite.xmos.setup()))
-        print(True)
-    elif args.cmd == "read-firmware":
+    if args.cmd == "read-firmware":
         print(
             asyncio.run(_request(args, lambda satellite: satellite.xmos.get_firmware()))
         )
@@ -30,25 +27,8 @@ def _handle(args: argparse.Namespace) -> int:
             f"device_status=0x{status.device_status:02X} "
             f"gpio_a=0x{status.gpio_port_a:02X} gpio_b=0x{status.gpio_port_b:02X}"
         )
-    elif args.cmd == "set-mic-output":
-        asyncio.run(
-            _request(
-                args,
-                lambda satellite: satellite.xmos.set_mic_output(args.left, args.right),
-            )
-        )
-        print(True)
     elif args.cmd == "reset":
         asyncio.run(_request(args, lambda satellite: satellite.xmos.reset()))
-        print(True)
-    elif args.cmd == "enable-flashing":
-        print(
-            asyncio.run(
-                _request(args, lambda satellite: satellite.xmos.enable_flashing())
-            )
-        )
-    elif args.cmd == "disable-flashing":
-        asyncio.run(_request(args, lambda satellite: satellite.xmos.disable_flashing()))
         print(True)
     elif args.cmd == "flash-firmware":
         print(
@@ -68,17 +48,9 @@ def _handle(args: argparse.Namespace) -> int:
 
 def attach_to_parser(parser: argparse.ArgumentParser) -> None:
     commands = parser.add_subparsers(dest="cmd", required=True)
-    commands.add_parser("setup", help="Initialise XMOS")
     commands.add_parser("read-firmware", help="Read firmware version")
     commands.add_parser("read-status", help="Read status register")
     commands.add_parser("reset", help="Reset XMOS")
-    commands.add_parser("enable-flashing", help="Enter firmware flashing mode")
-    commands.add_parser("disable-flashing", help="Exit firmware flashing mode")
-    mic_output = commands.add_parser(
-        "set-mic-output", help="Set I2S microphone outputs"
-    )
-    mic_output.add_argument("left", type=int)
-    mic_output.add_argument("right", type=int)
     flash = commands.add_parser("flash-firmware", help="Flash factory image")
     flash.add_argument("img", type=Path)
     flash.add_argument("--verify", action="store_true")

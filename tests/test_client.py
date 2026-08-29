@@ -9,7 +9,9 @@ from satellite1 import (
     Satellite1ConnectionError,
     Satellite1DaemonError,
 )
-from satellite1d.server import Satellite1dServer
+from satellite1d.adapters.unix_socket import UnixSocketAdapter
+from satellite1d.contracts.events import ButtonPressed, MicMuteChanged
+from satellite1d.events import EventHub
 
 
 def _socket_path() -> Path:
@@ -27,22 +29,17 @@ class FakeHardware:
         self.calls.append((method, params))
         results = {
             "power.get_contract": {"available": True, "voltage": 9, "current": 2},
-            "dac.setup": {"ok": True},
             "dac.get_volume": {"volume": 0.5},
             "dac.get_amp_level": {"amp_level": 8},
             "dac.get_plugged_in": {"plugged_in": True},
-            "dac.get_status": {"line_out": "line", "speaker": "speaker"},
-            "xmos.setup": {"ok": True},
+            "mics.get_muted": {"muted": True},
             "xmos.get_firmware": {"firmware": "v1.2.3"},
             "xmos.get_status": {
                 "device_status": 1,
                 "gpio_port_a": 2,
                 "gpio_port_b": 3,
             },
-            "xmos.set_mic_output": {"ok": True},
             "xmos.reset": {"ok": True},
-            "xmos.enable_flashing": {"ok": True},
-            "xmos.disable_flashing": {"ok": True},
             "xmos.flash_firmware": {"ok": True},
         }
         if method == "dac.set_volume":
@@ -54,32 +51,50 @@ class FakeHardware:
         return results[method]
 
 
+class EventHardware(FakeHardware):
+    def __init__(self) -> None:
+        super().__init__()
+        self.events = EventHub()
+
+    async def current_events(self):
+        return [MicMuteChanged(muted=True)]
+
+
 def test_client_exposes_the_existing_daemon_capabilities():
     async def run() -> None:
         hardware = FakeHardware()
-        server = Satellite1dServer(hardware, _socket_path())
+        server = UnixSocketAdapter(hardware, _socket_path())
         await server.start()
         try:
             async with AsyncSatellite1Client(server.socket_path) as satellite:
                 assert satellite.daemon_info is not None
-                assert "xmos.*" in satellite.daemon_info.capabilities
+                assert satellite.daemon_info.capabilities == (
+                    "system.health",
+                    "power.get_contract",
+                    "dac.get_volume",
+                    "dac.set_volume",
+                    "dac.set_mute",
+                    "dac.get_plugged_in",
+                    "dac.get_amp_level",
+                    "dac.set_amp_level",
+                    "mics.get_muted",
+                    "xmos.get_firmware",
+                    "xmos.get_status",
+                    "xmos.reset",
+                    "xmos.flash_firmware",
+                )
                 assert (await satellite.health()).dac is True
                 assert (await satellite.power.get_contract()).voltage == 9.0
-                await satellite.dac.setup()
                 assert await satellite.dac.get_volume("speaker") == 0.5
                 assert await satellite.dac.set_volume(0.25, "speaker") == 0.25
                 assert await satellite.dac.set_muted(True, "speaker") is True
                 assert await satellite.dac.get_amp_level() == 8
                 assert await satellite.dac.set_amp_level(12) == 12
                 assert await satellite.dac.is_line_out_plugged_in() is True
-                assert (await satellite.dac.get_status()).speaker == "speaker"
-                await satellite.xmos.setup()
+                assert await satellite.mics.get_muted() is True
                 assert await satellite.xmos.get_firmware() == "v1.2.3"
                 assert (await satellite.xmos.get_status()).gpio_port_b == 3
-                await satellite.xmos.set_mic_output(1, 2)
                 await satellite.xmos.reset()
-                assert await satellite.xmos.enable_flashing() is True
-                await satellite.xmos.disable_flashing()
                 assert await satellite.xmos.flash_firmware("firmware.bin", verify=True)
         finally:
             await server.close()
@@ -101,13 +116,33 @@ def test_client_requires_a_connection():
     asyncio.run(run())
 
 
+def test_client_subscribes_to_typed_events():
+    async def run() -> None:
+        hardware = EventHardware()
+        server = UnixSocketAdapter(hardware, _socket_path(), events=hardware.events)
+        await server.start()
+        try:
+            async with AsyncSatellite1Client(server.socket_path) as satellite:
+                assert satellite.daemon_info is not None
+                assert "events.subscribe" in satellite.daemon_info.capabilities
+                events = satellite.events.subscribe()
+                assert (await anext(events)).muted is True
+                hardware.events.publish(ButtonPressed("action"))
+                assert (await anext(events)).name == "action"
+                await events.aclose()
+        finally:
+            await server.close()
+
+    asyncio.run(run())
+
+
 def test_client_exposes_daemon_errors():
     class RejectingHardware(FakeHardware):
         async def dispatch(self, method, params):
             raise ValueError("invalid request")
 
     async def run() -> None:
-        server = Satellite1dServer(RejectingHardware(), _socket_path())
+        server = UnixSocketAdapter(RejectingHardware(), _socket_path())
         await server.start()
         try:
             async with AsyncSatellite1Client(server.socket_path) as satellite:

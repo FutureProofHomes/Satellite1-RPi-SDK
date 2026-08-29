@@ -30,10 +30,7 @@ def _request(
 
 def _handle(args: argparse.Namespace) -> int:
     dac = args.dac
-    if args.cmd == "setup":
-        _request(args, lambda satellite: satellite.dac.setup())
-        print(True)
-    elif args.cmd == "volume":
+    if args.cmd == "volume":
         print(_request(args, lambda satellite: satellite.dac.get_volume(dac)))
     elif args.cmd == "set-volume":
         print(
@@ -53,10 +50,6 @@ def _handle(args: argparse.Namespace) -> int:
         )
     elif args.cmd == "plugged-in":
         print(_request(args, lambda satellite: satellite.dac.is_line_out_plugged_in()))
-    elif args.cmd == "status":
-        status = _request(args, lambda satellite: satellite.dac.get_status())
-        print(status.line_out)
-        print(status.speaker)
     else:
         return 2
     return 0
@@ -75,9 +68,7 @@ def attach_dac_parser(parser: argparse.ArgumentParser) -> None:
     set_amp_level.add_argument("level", type=int)
     commands.add_parser("mute", help="Mute output")
     commands.add_parser("unmute", help="Unmute output")
-    commands.add_parser("setup", help="Initialise DAC hardware")
     commands.add_parser("plugged-in", help="Check line-out jack state")
-    commands.add_parser("status", help="Get DAC status")
     parser.set_defaults(_handler=_handle)
 
 

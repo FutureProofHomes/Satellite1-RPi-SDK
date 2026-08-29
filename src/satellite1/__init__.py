@@ -8,18 +8,32 @@ from .client import (
     Satellite1DaemonError,
     Satellite1ProtocolError,
 )
-from .models import DacStatus, DaemonInfo, HardwareHealth, PowerContract, XmosStatus
+from .models import (
+    ButtonPressed,
+    DaemonInfo,
+    HardwareHealth,
+    MicMuteChanged,
+    LineOutJackChanged,
+    PowerContract,
+    Satellite1Event,
+    VolumeChanged,
+    XmosStatus,
+)
 
 __all__ = [
     "DEFAULT_SOCKET_PATH",
     "AsyncSatellite1Client",
-    "DacStatus",
+    "ButtonPressed",
     "DaemonInfo",
     "HardwareHealth",
+    "MicMuteChanged",
+    "LineOutJackChanged",
     "PowerContract",
     "Satellite1ClientError",
     "Satellite1ConnectionError",
     "Satellite1DaemonError",
+    "Satellite1Event",
+    "VolumeChanged",
     "Satellite1ProtocolError",
     "XmosStatus",
 ]

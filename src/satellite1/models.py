@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal, TypeAlias
 
 
 @dataclass(frozen=True)
@@ -25,13 +26,31 @@ class PowerContract:
 
 
 @dataclass(frozen=True)
-class DacStatus:
-    line_out: str
-    speaker: str
-
-
-@dataclass(frozen=True)
 class XmosStatus:
     device_status: int
     gpio_port_a: int
     gpio_port_b: int
+
+
+@dataclass(frozen=True)
+class ButtonPressed:
+    name: Literal["volume_up", "volume_down", "action"]
+
+
+@dataclass(frozen=True)
+class MicMuteChanged:
+    muted: bool
+
+
+@dataclass(frozen=True)
+class VolumeChanged:
+    output: Literal["line-out", "speaker"]
+    volume: float
+
+
+@dataclass(frozen=True)
+class LineOutJackChanged:
+    plugged_in: bool
+
+
+Satellite1Event: TypeAlias = ButtonPressed | MicMuteChanged | VolumeChanged | LineOutJackChanged
