@@ -1,8 +1,10 @@
-satellite1-rpi-sdk (0.1.6) bookworm; urgency=medium
+satellite1-rpi-sdk (0.2.0) trixie; urgency=medium
 
-  * set default volume to 100%
+  * Run hardware through the satellite1d service runtime.
+  * Migrate GPIO ownership to libgpiod.
+  * Add typed daemon events and volume-button workflow support.
 
- -- Florian Asche <github@florian-asche.de>  Mon, 26 Jul 2026 16:23:08 +0000
+ -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Sat, 29 Aug 2026 00:00:00 +0000
 
 
 satellite1-rpi-sdk (0.1.5) bookworm; urgency=medium

@@ -291,7 +291,7 @@ mic_mute = "KEY_MICMUTE"
 
 Mappings use Linux `KEY_*` names. An empty value disables one button. The
 daemon validates mappings at startup and fails clearly on an unknown key name.
-It debounces the XMOS status samples and emits press/release events through a
+It debounces the XMOS status samples and emits button-press events through a
 virtual `Satellite1 Buttons` input device. The mic-mute button is still owned
 by XMOS firmware; its optional event only reports that physical press.
 
