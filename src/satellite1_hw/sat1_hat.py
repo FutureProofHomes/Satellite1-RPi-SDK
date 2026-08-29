@@ -1,17 +1,18 @@
-from dataclasses import dataclass
-import random
-
 import logging
+import random
+from dataclasses import dataclass
 
 from .components.xmos_device_cntrl import (
-    DeviceCntrlConfig,
-    DeviceCntrlCMD,
-    XMOSDeviceCntrl,
-    DeviceCntrlStatusRegister as StatusRegister,
+    AUDIO_CFG_SERVICER,
     DFU_SERVICER,
     MAIN_SERVICER,
-    AUDIO_CFG_SERVICER,
     SPI_ECHO_SERVICER,
+    DeviceCntrlCMD,
+    DeviceCntrlConfig,
+    XMOSDeviceCntrl,
+)
+from .components.xmos_device_cntrl import (
+    DeviceCntrlStatusRegister as StatusRegister,
 )
 from .hal.gpio import GpioInput, GpioOutput
 
@@ -25,16 +26,20 @@ WRITE_LED_RING_RAW = DeviceCntrlCMD(200, 0, 72)
 
 @dataclass(frozen=True)
 class HatButtons:
+    """Decoded state of the four physical Satellite1 HAT buttons."""
+
     volume_up: bool
     action: bool
     volume_down: bool
     mic_mute: bool
 
     def as_dict(self) -> dict[str, bool]:
+        """Return button states keyed by their public event names."""
         return {name: getattr(self, name) for name in HAT_BUTTON_NAMES}
 
 
 def decode_buttons(status: StatusRegister | None) -> HatButtons | None:
+    """Decode a valid XMOS status register into physical button states."""
     if status is None or status.device_status != 0 or status.gpio_port_b != 0:
         return None
     port_a = status.gpio_port_a
@@ -49,6 +54,8 @@ def decode_buttons(status: StatusRegister | None) -> HatButtons | None:
 
 
 class XMOS:
+    """Low-level Satellite1 XMOS device-control client."""
+
     CNTRL_STATUS_LENGTH = 4
 
     def __init__(self) -> None:
@@ -66,12 +73,15 @@ class XMOS:
         self._firmware: str | None = None
 
     def setup(self, init_spi: bool = True) -> None:
+        """Open the XMOS SPI transport."""
         self._cntrl.open()
 
     def close(self) -> None:
+        """Close the XMOS SPI transport."""
         self._cntrl.close()
 
     def read_firmware(self) -> str | None:
+        """Return the XMOS firmware version, if it can be read."""
         ok, data = self._cntrl.send_cmd(DFU_SERVICER.CMD_GET_VERSION)
         if ok and len(data) == 5:
             self._firmware = self._fw_from_bytes(data)
@@ -79,6 +89,7 @@ class XMOS:
         return None
 
     def read_status(self) -> StatusRegister | None:
+        """Return the latest XMOS device status register."""
         ok, _ = self._cntrl.send_cmd(MAIN_SERVICER.CMD_NO_OP)
         if ok:
             data = bytes(self._cntrl.dc_status_register_)
@@ -88,17 +99,20 @@ class XMOS:
         return None
 
     def read_buttons(self) -> HatButtons | None:
+        """Return decoded physical button states from XMOS status."""
         return decode_buttons(self.read_status())
 
     def render_led_frame(self, payload: bytes) -> bool:
+        """Render one 72-byte GRB LED-ring payload through XMOS."""
         if len(payload) != WRITE_LED_RING_RAW.payload_len:
             raise ValueError("XMOS LED frame payload must contain 72 bytes")
         ok, _ = self._cntrl.send_cmd(WRITE_LED_RING_RAW, payload)
         return ok
 
     def run_spi_echo_test(self) -> bool:
+        """Verify XMOS SPI transfers with randomized echo payloads."""
         success = True
-        for step in range(10):
+        for _step in range(10):
             rnd_bytes = random.randbytes(128)
             ok, data = self._cntrl.send_cmd(SPI_ECHO_SERVICER.CMD_SET, rnd_bytes)
             if not ok:
@@ -111,6 +125,7 @@ class XMOS:
         return success
 
     def set_mic_left_output(self, out_select: int) -> bool:
+        """Select the XMOS output route for the left microphone."""
         if 0 <= out_select <= 7:
             ok, _ = self._cntrl.send_cmd(
                 AUDIO_CFG_SERVICER.CMD_MIC_LEFT_SELECT, [out_select]
@@ -119,6 +134,7 @@ class XMOS:
         raise ValueError("left microphone output must be from 0 to 7")
 
     def set_mic_right_output(self, out_select: int) -> bool:
+        """Select the XMOS output route for the right microphone."""
         if 0 <= out_select <= 7:
             ok, _ = self._cntrl.send_cmd(
                 AUDIO_CFG_SERVICER.CMD_MIC_RIGHT_SELECT, [out_select]
@@ -146,15 +162,19 @@ class ActionButton:
 
     @property
     def fileno(self) -> int:
+        """Return the GPIO event file descriptor for event-loop registration."""
         return self._input.fileno
 
     def read_pressed(self) -> bool:
+        """Return whether the active-low action button is pressed."""
         return not self._input.read_value()
 
     def read_edges(self) -> list[bool]:
+        """Return debouncing candidates as pressed-state edge values."""
         return [not edge.rising for edge in self._input.read_edges()]
 
     def close(self) -> None:
+        """Release the GPIO input line."""
         self._input.close()
 
 
@@ -165,14 +185,18 @@ class XmosResetPin:
         self._output = GpioOutput(XMOS_RESET_BCM_PIN, chip=chip, initial=False)
 
     def hold(self) -> None:
+        """Hold XMOS in reset."""
         self._output.set_value(True)
 
     def release(self) -> None:
+        """Release XMOS from reset."""
         self._output.set_value(False)
 
     def close(self) -> None:
+        """Release the GPIO reset line."""
         self._output.close()
 
 
 def init() -> None:
+    """Reserve a future board-wide hardware initialization hook."""
     pass

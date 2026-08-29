@@ -49,7 +49,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py311"
-extend-exclude = ["third_party", "src/satellite1_hw", "tests/test_components", "tests/test_xmos.py"]
+extend-exclude = ["third_party", "tests/test_components", "tests/test_xmos.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
