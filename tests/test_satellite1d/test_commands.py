@@ -59,3 +59,31 @@ def test_led_commands_queue_complete_frames_and_clear_them():
         assert led_ring.cleared
 
     asyncio.run(run())
+
+
+def test_environment_command_serializes_nullable_sensor_readings():
+    class Environment:
+        async def get_readings(self):
+            return type(
+                "Readings",
+                (),
+                {
+                    "temperature_c": 23.5,
+                    "humidity_percent": 45.0,
+                    "ambient_light_channel_0": None,
+                    "ambient_light_channel_1": None,
+                },
+            )()
+
+    async def run() -> None:
+        commands = DaemonCommands(
+            object(), object(), object(), object(), environment=Environment()
+        )
+        assert await commands.dispatch("environment.get_readings", {}) == {
+            "temperature_c": 23.5,
+            "humidity_percent": 45.0,
+            "ambient_light_channel_0": None,
+            "ambient_light_channel_1": None,
+        }
+
+    asyncio.run(run())

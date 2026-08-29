@@ -11,6 +11,7 @@ from .client import (
 from .models import (
     ButtonPressed,
     DaemonInfo,
+    EnvironmentReadings,
     HardwareHealth,
     LineOutJackChanged,
     MicMuteChanged,
@@ -26,6 +27,7 @@ __all__ = [
     "AsyncSatellite1Client",
     "ButtonPressed",
     "DaemonInfo",
+    "EnvironmentReadings",
     "HardwareHealth",
     "MicMuteChanged",
     "LineOutJackChanged",

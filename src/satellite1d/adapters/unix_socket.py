@@ -273,6 +273,7 @@ class UnixSocketAdapter:
         capabilities = [
             "system.health",
             "power.get_contract",
+            "environment.get_readings",
             "dac.get_volume",
             "dac.set_volume",
             "dac.set_mute",

@@ -12,6 +12,7 @@ from ._protocol import PROTOCOL_VERSION
 from .models import (
     ButtonPressed,
     DaemonInfo,
+    EnvironmentReadings,
     HardwareHealth,
     LineOutJackChanged,
     MicMuteChanged,
@@ -61,6 +62,7 @@ class AsyncSatellite1Client:
         self._request_lock = asyncio.Lock()
         self._next_request_id = 1
         self.power = _PowerClient(self)
+        self.environment = _EnvironmentClient(self)
         self.dac = _DacClient(self)
         self.events = _EventsClient(self)
         self.mics = _MicsClient(self)
@@ -187,6 +189,25 @@ class _PowerClient:
         if not _bool(result, "available"):
             return None
         return PowerContract(_number(result, "voltage"), _number(result, "current"))
+
+
+class _EnvironmentClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def get_readings(self) -> EnvironmentReadings:
+        """Return current environmental readings from the daemon."""
+        result = await self._client._request("environment.get_readings")
+        return EnvironmentReadings(
+            temperature_c=_optional_number(result, "temperature_c"),
+            humidity_percent=_optional_number(result, "humidity_percent"),
+            ambient_light_channel_0=_optional_integer(
+                result, "ambient_light_channel_0"
+            ),
+            ambient_light_channel_1=_optional_integer(
+                result, "ambient_light_channel_1"
+            ),
+        )
 
 
 class _DacClient:
@@ -394,8 +415,26 @@ def _integer(result: dict[str, Any], name: str) -> int:
     return value
 
 
+def _optional_integer(result: dict[str, Any], name: str) -> int | None:
+    value = result.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return value
+
+
 def _number(result: dict[str, Any], name: str) -> float:
     value = result.get(name)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return float(value)
+
+
+def _optional_number(result: dict[str, Any], name: str) -> float | None:
+    value = result.get(name)
+    if value is None:
+        return None
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
     return float(value)

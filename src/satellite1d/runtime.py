@@ -12,6 +12,7 @@ from .config import DaemonConfig
 from .contracts.events import DaemonEvent, XmosAvailabilityChanged
 from .events import EventHub
 from .services.audio import LineOutDacService, SpeakerDacService
+from .services.environment import EnvironmentService
 from .services.gpio import ActionButtonService, XmosResetService
 from .services.led_ring import LedRingService
 from .services.power import PowerDeliveryService
@@ -32,6 +33,7 @@ class DaemonRuntime:
         self._lock_file: TextIO | None = None
         self._gpio_chip = config.gpio.chip
         self.power = PowerDeliveryService()
+        self.environment = EnvironmentService()
         self.line_out = LineOutDacService(config.line_out.to_sdk(), self.events)
         self.speaker = SpeakerDacService(
             config.speaker.to_sdk(), self.power, self.events
@@ -89,13 +91,19 @@ class DaemonRuntime:
             else None
         )
         self.commands = DaemonCommands(
-            self.power, self.line_out, self.speaker, self.xmos, self.led_ring
+            self.power,
+            self.line_out,
+            self.speaker,
+            self.xmos,
+            self.led_ring,
+            self.environment,
         )
 
     async def start(self) -> None:
         self._acquire_lock()
         try:
             await self.power.start()
+            await self.environment.start()
             await self.reset.start()
             self._xmos_availability_subscriber = self.events.subscribe()
             self._xmos_availability_task = asyncio.create_task(
@@ -145,6 +153,7 @@ class DaemonRuntime:
         await self.speaker.close()
         await self.line_out.close()
         await self.power.close()
+        await self.environment.close()
         self._release_lock()
 
     async def _watch_xmos_availability(self) -> None:

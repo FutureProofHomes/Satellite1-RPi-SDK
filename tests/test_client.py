@@ -29,6 +29,12 @@ class FakeHardware:
         self.calls.append((method, params))
         results = {
             "power.get_contract": {"available": True, "voltage": 9, "current": 2},
+            "environment.get_readings": {
+                "temperature_c": 23.5,
+                "humidity_percent": 45,
+                "ambient_light_channel_0": 123,
+                "ambient_light_channel_1": None,
+            },
             "dac.get_volume": {"volume": 0.5},
             "dac.get_amp_level": {"amp_level": 8},
             "dac.get_plugged_in": {"plugged_in": True},
@@ -81,6 +87,7 @@ def test_client_exposes_the_existing_daemon_capabilities():
                 assert satellite.daemon_info.capabilities == (
                     "system.health",
                     "power.get_contract",
+                    "environment.get_readings",
                     "dac.get_volume",
                     "dac.set_volume",
                     "dac.set_mute",
@@ -95,6 +102,9 @@ def test_client_exposes_the_existing_daemon_capabilities():
                 )
                 assert (await satellite.health()).dac is True
                 assert (await satellite.power.get_contract()).voltage == 9.0
+                readings = await satellite.environment.get_readings()
+                assert readings.temperature_c == 23.5
+                assert readings.ambient_light_channel_1 is None
                 assert await satellite.dac.get_volume("speaker") == 0.5
                 assert await satellite.dac.set_volume(0.25, "speaker") == 0.25
                 assert await satellite.dac.set_muted(True, "speaker") is True
