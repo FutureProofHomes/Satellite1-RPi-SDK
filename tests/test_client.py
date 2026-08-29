@@ -60,6 +60,16 @@ class EventHardware(FakeHardware):
         return [MicMuteChanged(muted=True)]
 
 
+class LedHardware(FakeHardware):
+    led_ring_enabled = True
+
+    async def dispatch(self, method, params):
+        if method in {"led.render", "led.clear"}:
+            self.calls.append((method, params))
+            return {"ok": True}
+        return await super().dispatch(method, params)
+
+
 def test_client_exposes_the_existing_daemon_capabilities():
     async def run() -> None:
         hardware = FakeHardware()
@@ -132,6 +142,28 @@ def test_client_subscribes_to_typed_events():
                 await events.aclose()
         finally:
             await server.close()
+
+    asyncio.run(run())
+
+
+def test_client_renders_and_clears_led_frames():
+    async def run() -> None:
+        hardware = LedHardware()
+        server = UnixSocketAdapter(hardware, _socket_path())
+        await server.start()
+        try:
+            async with AsyncSatellite1Client(server.socket_path) as satellite:
+                assert satellite.daemon_info is not None
+                assert "led.render" in satellite.daemon_info.capabilities
+                await satellite.led.render_frame([(1, 2, 3)] * 24)
+                await satellite.led.clear()
+        finally:
+            await server.close()
+
+        assert hardware.calls == [
+            ("led.render", {"pixels": [[1, 2, 3]] * 24}),
+            ("led.clear", {}),
+        ]
 
     asyncio.run(run())
 

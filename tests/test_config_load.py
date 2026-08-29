@@ -174,6 +174,7 @@ def test_missing_file_uses_defaults(tmp_path: Path):
 def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
     default = load_daemon_config(tmp_path / "nope.toml")
     assert default.gpio.chip == "/dev/gpiochip0"
+    assert not default.led_ring.enabled
 
     cfg_file = tmp_path / "conf.toml"
     write_toml(
@@ -181,6 +182,36 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
         """
         [gpio]
         chip = "/dev/gpiochip4"
+
+        [led_ring]
+        enabled = true
+
+        [workflows.volume-buttons]
+        led_enabled = true
+        led_color = [1, 2, 3]
+        led_muted_color = [4, 5, 6]
+        led_timeout = 2.0
+
+        [workflows.jack-led]
+        enabled = true
+        color = [7, 8, 9]
+        frame_interval = 0.05
+
+        [workflows.mute-led]
+        enabled = true
+        mic_muted_color = [10, 11, 12]
+        speaker_muted_color = [13, 14, 15]
         """,
     )
-    assert load_daemon_config(cfg_file).gpio.chip == "/dev/gpiochip4"
+    config = load_daemon_config(cfg_file)
+    assert config.gpio.chip == "/dev/gpiochip4"
+    assert config.led_ring.enabled
+    assert config.volume_buttons_workflow.led_color == (1, 2, 3)
+    assert config.volume_buttons_workflow.led_muted_color == (4, 5, 6)
+    assert config.volume_buttons_workflow.led_timeout == 2.0
+    assert config.jack_led_workflow.enabled
+    assert config.jack_led_workflow.color == (7, 8, 9)
+    assert config.jack_led_workflow.frame_interval == 0.05
+    assert config.mute_led_workflow.enabled
+    assert config.mute_led_workflow.mic_muted_color == (10, 11, 12)
+    assert config.mute_led_workflow.speaker_muted_color == (13, 14, 15)

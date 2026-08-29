@@ -27,6 +27,7 @@ from ..contracts.events import (
     EventSubscriber,
     LineOutJackChanged,
     MicMuteChanged,
+    SpeakerMuteChanged,
     VolumeChanged,
 )
 
@@ -278,6 +279,8 @@ class UnixSocketAdapter:
             "xmos.reset",
             "xmos.flash_firmware",
         ]
+        if getattr(self.commands, "led_ring_enabled", False):
+            capabilities.extend(("led.render", "led.clear"))
         if self.events is not None:
             capabilities.append("events.subscribe")
         return capabilities
@@ -288,6 +291,8 @@ def _event_payload(event: DaemonEvent) -> dict[str, Any]:
         return {"event": "buttons.pressed", "data": {"name": event.name}}
     if isinstance(event, MicMuteChanged):
         return {"event": "mics.muted_changed", "data": {"muted": event.muted}}
+    if isinstance(event, SpeakerMuteChanged):
+        return {"event": "audio.speaker_muted_changed", "data": {"muted": event.muted}}
     if isinstance(event, VolumeChanged):
         return {
             "event": "audio.volume_changed",

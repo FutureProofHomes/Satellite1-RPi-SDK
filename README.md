@@ -189,7 +189,7 @@ The `sat1` command provides unified control over Satellite1 hardware subsystems.
 ### Global options
 
 ```bash
-sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
+sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,led,pd} ...
 ```
 
 
@@ -206,6 +206,7 @@ sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
 | ------------ | ------------------------------------------ |
 | `dac`      | Audio DAC controls (volume, mute, amp level) |
 | `xmos`     | XMOS firmware and interface management   |
+| `led`      | XMOS LED ring controls                   |
 | `pd`       | USB-C Power Delivery status              |
 
 ### DAC Commands
@@ -256,6 +257,17 @@ sat1 pd
 ```
 
 Shows the current USB-C Power Delivery contract: voltage, current, maximum power, and contract type (PD, USB, etc.).
+
+### LED Ring
+
+The optional XMOS backend drives the complete 24-pixel LED ring. Frames are
+accepted into a latest-frame-wins queue, so callers should send complete frames
+without waiting for physical transmission.
+
+```bash
+sat1 led set-color 0 32 128
+sat1 led clear
+```
 
 ## Configuration
 
@@ -319,7 +331,42 @@ fixed step. It selects line-out when a jack is plugged in and speaker otherwise.
 [workflows.volume-buttons]
 enabled = true
 step = 0.05
+led_enabled = true
+led_color = [0, 90, 255]
+led_muted_color = [255, 0, 0]
+led_timeout = 1.5
 ```
+
+When enabled, each volume-button press temporarily displays a 24-pixel volume
+bar. Zero volume displays a red first pixel. The notification suppresses normal
+LED frames until `led_timeout` expires, then restores the latest normal frame.
+
+### Jack Animation
+
+Enable the optional line-out jack animation:
+
+```toml
+[workflows.jack-led]
+enabled = true
+color = [0, 90, 255]
+frame_interval = 0.04
+```
+
+Plugging and unplugging animate two symmetric pixels across the ring over 13
+frames. Volume notifications have higher priority and interrupt a jack animation;
+the latest normal LED frame is restored when the active presentation ends.
+
+### LED Ring
+
+Enable the XMOS-controlled LED ring:
+
+```toml
+[led_ring]
+enabled = true
+backend = "xmos"
+```
+
+The native WS281x backend is not included in this release.
 
 ## Python API
 
@@ -334,6 +381,7 @@ async with AsyncSatellite1Client() as satellite:
     await satellite.dac.set_volume(0.5, dac="speaker")
     contract = await satellite.power.get_contract()
     firmware = await satellite.xmos.get_firmware()
+    await satellite.led.render_frame([(0, 32, 128)] * 24)
 ```
 
 The client provides `health()`, `satellite.power.get_contract()`, DAC controls,

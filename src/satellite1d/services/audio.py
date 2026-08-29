@@ -12,7 +12,12 @@ from satellite1_hw.audio_out import (
 )
 
 from satellite1d.contracts.audio import AudioOutputId
-from satellite1d.contracts.events import EventPublisher, LineOutJackChanged, VolumeChanged
+from satellite1d.contracts.events import (
+    EventPublisher,
+    LineOutJackChanged,
+    SpeakerMuteChanged,
+    VolumeChanged,
+)
 from satellite1d.contracts.power import PowerContractReader
 
 JACK_POLL_SECONDS = 0.1
@@ -187,6 +192,14 @@ class SpeakerDacService(_DacService):
             dac = await asyncio.to_thread(SpeakerDac.from_cfg, self._config, power_mode)
             await asyncio.to_thread(dac.setup)
             self._dac = dac
+
+    async def mute(self) -> None:
+        await super().mute()
+        self._events.publish(SpeakerMuteChanged(muted=True))
+
+    async def unmute(self) -> None:
+        await super().unmute()
+        self._events.publish(SpeakerMuteChanged(muted=False))
 
     # AmpLevelControl
 

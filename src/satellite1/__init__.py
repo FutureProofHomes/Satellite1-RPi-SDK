@@ -16,6 +16,7 @@ from .models import (
     LineOutJackChanged,
     PowerContract,
     Satellite1Event,
+    SpeakerMuteChanged,
     VolumeChanged,
     XmosStatus,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "Satellite1ConnectionError",
     "Satellite1DaemonError",
     "Satellite1Event",
+    "SpeakerMuteChanged",
     "VolumeChanged",
     "Satellite1ProtocolError",
     "XmosStatus",

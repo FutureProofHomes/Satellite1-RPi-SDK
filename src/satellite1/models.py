@@ -17,6 +17,7 @@ class HardwareHealth:
     status: str
     dac: bool
     xmos: bool
+    led_ring: bool = False
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,11 @@ class MicMuteChanged:
 
 
 @dataclass(frozen=True)
+class SpeakerMuteChanged:
+    muted: bool
+
+
+@dataclass(frozen=True)
 class VolumeChanged:
     output: Literal["line-out", "speaker"]
     volume: float
@@ -53,4 +59,4 @@ class LineOutJackChanged:
     plugged_in: bool
 
 
-Satellite1Event: TypeAlias = ButtonPressed | MicMuteChanged | VolumeChanged | LineOutJackChanged
+Satellite1Event: TypeAlias = ButtonPressed | MicMuteChanged | SpeakerMuteChanged | VolumeChanged | LineOutJackChanged
