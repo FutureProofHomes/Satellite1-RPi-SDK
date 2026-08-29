@@ -1,0 +1,4 @@
+# The daemon runs as satellite1d:satellite1. Button output is opt-in through
+# [buttons.evdev], but the node remains safely group-owned when enabled.
+SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="satellite1", MODE="0660"
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="satellite1", MODE="0660"

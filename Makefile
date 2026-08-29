@@ -30,6 +30,7 @@ DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(DEB_VERSION)_$(ARCH).deb
 
 BUILD_DIR     ?= ${PWD}/.debian-build/sdk
 DEBIAN_DIR    := ${BUILD_DIR}/debian
+PACKAGE_INPUTS := Makefile $(shell git ls-files debian etc udev)
 
 LOCAL_VENV    ?= ${PWD}/.venv
 
@@ -111,12 +112,14 @@ $(DEB_TARGET): docker-image verify-git-is-clean $(DEBIAN_DIR) | $(OUT_DIR)
 	@echo
 	@echo "Built package: $(DEB_TARGET)"
 
-$(DEBIAN_DIR):
+$(DEBIAN_DIR): $(PACKAGE_INPUTS)
 	@echo "Creating $(BUILD_DIR)"
 	mkdir -p "$(BUILD_DIR)"
 	echo "*" > "$(BUILD_DIR)/.gitignore"
+	rm -rf "$(DEBIAN_DIR)" "$(BUILD_DIR)/etc" "$(BUILD_DIR)/udev"
 	cp -r "debian" "$(BUILD_DIR)"
 	cp -r "etc" "$(BUILD_DIR)"
+	cp -r "udev" "$(BUILD_DIR)"
 
 
 
