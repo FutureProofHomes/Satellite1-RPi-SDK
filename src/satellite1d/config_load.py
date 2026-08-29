@@ -39,7 +39,11 @@ def _pick_section(raw: Mapping[str, Any], groups: tuple[str, ...]) -> Mapping[st
     # Try declared groups in order. A missing named group must not receive
     # unrelated TOML tables, but ungrouped top-level settings remain supported.
     for g in groups:
-        sec = raw.get(g)
+        sec: Any = raw
+        for part in g.split("."):
+            if not isinstance(sec, Mapping):
+                break
+            sec = sec.get(part)
         if isinstance(sec, dict):
             return sec
     if not groups:
