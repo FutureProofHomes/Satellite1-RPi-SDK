@@ -3,13 +3,14 @@
 import asyncio
 import fcntl
 from pathlib import Path
+from typing import TextIO
 
-from satellite1_hw.sat1_hat import ActionButton, XMOS
+from satellite1_hw.sat1_hat import XMOS, ActionButton
 
 from .commands import DaemonCommands
 from .config import DaemonConfig
-from .events import EventHub
 from .contracts.events import DaemonEvent, XmosAvailabilityChanged
+from .events import EventHub
 from .services.audio import LineOutDacService, SpeakerDacService
 from .services.gpio import ActionButtonService, XmosResetService
 from .services.led_ring import LedRingService
@@ -23,14 +24,18 @@ DEFAULT_LOCK_PATH = Path("/run/satellite1/hardware.lock")
 
 
 class DaemonRuntime:
-    def __init__(self, config: DaemonConfig, lock_path: Path = DEFAULT_LOCK_PATH) -> None:
+    def __init__(
+        self, config: DaemonConfig, lock_path: Path = DEFAULT_LOCK_PATH
+    ) -> None:
         self.events = EventHub()
         self._lock_path = lock_path
-        self._lock_file = None
+        self._lock_file: TextIO | None = None
         self._gpio_chip = config.gpio.chip
         self.power = PowerDeliveryService()
         self.line_out = LineOutDacService(config.line_out.to_sdk(), self.events)
-        self.speaker = SpeakerDacService(config.speaker.to_sdk(), self.power, self.events)
+        self.speaker = SpeakerDacService(
+            config.speaker.to_sdk(), self.power, self.events
+        )
         self.reset = XmosResetService(self._gpio_chip)
         self.xmos = XmosService(
             XMOS(),
@@ -40,7 +45,9 @@ class DaemonRuntime:
         )
         self._publish_gpio_action = config.buttons.action_source == "gpio"
         self.action: ActionButtonService | None = None
-        self._xmos_availability_subscriber: asyncio.Queue[DaemonEvent | None] | None = None
+        self._xmos_availability_subscriber: asyncio.Queue[DaemonEvent | None] | None = (
+            None
+        )
         self._xmos_availability_task: asyncio.Task[None] | None = None
         self.led_ring = LedRingService(self.xmos) if config.led_ring.enabled else None
         self.volume_buttons = (

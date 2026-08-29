@@ -59,4 +59,10 @@ class LineOutJackChanged:
     plugged_in: bool
 
 
-Satellite1Event: TypeAlias = ButtonPressed | MicMuteChanged | SpeakerMuteChanged | VolumeChanged | LineOutJackChanged
+Satellite1Event: TypeAlias = (
+    ButtonPressed
+    | MicMuteChanged
+    | SpeakerMuteChanged
+    | VolumeChanged
+    | LineOutJackChanged
+)

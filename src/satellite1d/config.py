@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from satellite1_hw.audio_out import (
     LineOutDacConfig as SdkLineOutDacConfig,
+)
+from satellite1_hw.audio_out import (
     SpeakerDacConfig as SdkSpeakerDacConfig,
 )
 
@@ -216,7 +218,11 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         volume_buttons_workflow=load_from_toml(
             VolumeButtonsWorkflowConfig, config_path=config_path
         ),
-        jack_led_workflow=load_from_toml(JackLedWorkflowConfig, config_path=config_path),
-        mute_led_workflow=load_from_toml(MuteLedWorkflowConfig, config_path=config_path),
+        jack_led_workflow=load_from_toml(
+            JackLedWorkflowConfig, config_path=config_path
+        ),
+        mute_led_workflow=load_from_toml(
+            MuteLedWorkflowConfig, config_path=config_path
+        ),
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
     )

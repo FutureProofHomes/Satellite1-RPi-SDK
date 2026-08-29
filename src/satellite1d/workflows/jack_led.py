@@ -3,7 +3,11 @@
 import asyncio
 import logging
 
-from satellite1d.contracts.events import DaemonEvent, EventSubscriber, LineOutJackChanged
+from satellite1d.contracts.events import (
+    DaemonEvent,
+    EventSubscriber,
+    LineOutJackChanged,
+)
 from satellite1d.led_patterns.jack import jack_plugged_frames, jack_unplugged_frames
 from satellite1d.services.led_ring import LedRingService
 
@@ -31,9 +35,7 @@ class JackLedWorkflow:
     async def start(self) -> None:
         if self._task is None:
             self._subscriber = self._events.subscribe()
-            self._task = asyncio.create_task(
-                self._run(), name="satellite1d-jack-led"
-            )
+            self._task = asyncio.create_task(self._run(), name="satellite1d-jack-led")
 
     async def close(self) -> None:
         task = self._task

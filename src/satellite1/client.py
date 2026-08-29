@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
-from collections.abc import AsyncIterator
-from typing import Any, Literal, Sequence
+from typing import Any, Literal, cast
 
 from ._protocol import PROTOCOL_VERSION
 from .models import (
     ButtonPressed,
     DaemonInfo,
     HardwareHealth,
-    MicMuteChanged,
     LineOutJackChanged,
+    MicMuteChanged,
     PowerContract,
     Satellite1Event,
     SpeakerMuteChanged,
@@ -67,7 +67,7 @@ class AsyncSatellite1Client:
         self.xmos = _XmosClient(self)
         self.led = _LedClient(self)
 
-    async def __aenter__(self) -> "AsyncSatellite1Client":
+    async def __aenter__(self) -> AsyncSatellite1Client:
         await self.connect()
         return self
 
@@ -356,7 +356,9 @@ def _event(value: Any) -> Satellite1Event:
     if name == "buttons.pressed":
         button = _string(data, "name")
         if button in {"volume_up", "volume_down", "action"}:
-            return ButtonPressed(button)
+            return ButtonPressed(
+                cast(Literal["volume_up", "volume_down", "action"], button)
+            )
     if name == "mics.muted_changed":
         return MicMuteChanged(_bool(data, "muted"))
     if name == "audio.speaker_muted_changed":
@@ -364,7 +366,9 @@ def _event(value: Any) -> Satellite1Event:
     if name == "audio.volume_changed":
         output = _string(data, "output")
         if output in {"line-out", "speaker"}:
-            return VolumeChanged(output, _number(data, "volume"))
+            return VolumeChanged(
+                cast(Literal["line-out", "speaker"], output), _number(data, "volume")
+            )
     if name == "audio.line_out_jack_changed":
         return LineOutJackChanged(_bool(data, "plugged_in"))
     raise Satellite1ProtocolError("satellite1d returned an unsupported event")

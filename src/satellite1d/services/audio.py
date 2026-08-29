@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import cast
 
 from satellite1_hw.audio_out import (
     LineOutDac,
@@ -10,7 +11,6 @@ from satellite1_hw.audio_out import (
     SpeakerDacConfig,
     get_lineout_dac,
 )
-
 from satellite1d.contracts.audio import AudioOutputId
 from satellite1d.contracts.events import (
     EventPublisher,
@@ -61,7 +61,9 @@ class _DacService:
 
     async def get_volume(self) -> float:
         async with self._lock:
-            return await asyncio.to_thread(lambda: self._require_dac().volume)
+            return cast(
+                float, await asyncio.to_thread(lambda: self._require_dac().volume)
+            )
 
     async def set_volume(self, volume: float) -> float:
         async with self._lock:
@@ -70,11 +72,11 @@ class _DacService:
                 raise AudioUnavailableError(f"failed to set {self._output} volume")
             current_volume = await asyncio.to_thread(lambda: dac.volume)
         self._events.publish(VolumeChanged(self._output, current_volume))
-        return current_volume
+        return cast(float, current_volume)
 
     async def is_muted(self) -> bool:
         async with self._lock:
-            return await asyncio.to_thread(self._require_dac().is_muted)
+            return cast(bool, await asyncio.to_thread(self._require_dac().is_muted))
 
     async def mute(self) -> None:
         async with self._lock:

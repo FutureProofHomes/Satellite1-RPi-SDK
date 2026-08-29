@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any
 
+from .contracts.audio import VolumeController
 from .contracts.events import (
     DaemonEvent,
     LineOutJackChanged,
@@ -37,7 +38,9 @@ class DaemonCommands:
         dac = self._line_out.available and self._speaker.available
         led_ring = self._led_ring.available if self._led_ring is not None else False
         return {
-            "status": "healthy" if xmos and dac and (self._led_ring is None or led_ring) else "degraded",
+            "status": "healthy"
+            if xmos and dac and (self._led_ring is None or led_ring)
+            else "degraded",
             "dac": dac,
             "xmos": xmos,
             "led_ring": led_ring,
@@ -62,7 +65,11 @@ class DaemonCommands:
             return (
                 {"available": False, "voltage": None, "current": None}
                 if contract is None
-                else {"available": True, "voltage": contract.voltage, "current": contract.current}
+                else {
+                    "available": True,
+                    "voltage": contract.voltage,
+                    "current": contract.current,
+                }
             )
         if method == "mics.get_muted":
             return {"muted": await self._xmos.get_microphone_mute()}
@@ -129,9 +136,13 @@ class DaemonCommands:
             return {"amp_level": await self._speaker.set_amp_level(level)}
         raise KeyError(method)
 
-    async def _select_dac(self, output: str):
+    async def _select_dac(self, output: str) -> VolumeController:
         if output == "line-out":
             return self._line_out
         if output == "speaker":
             return self._speaker
-        return self._line_out if await self._line_out.is_jack_plugged_in() else self._speaker
+        return (
+            self._line_out
+            if await self._line_out.is_jack_plugged_in()
+            else self._speaker
+        )

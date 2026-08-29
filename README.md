@@ -3,7 +3,7 @@
 Python library and CLI tools for controlling the Satellite1 Raspberry Pi HAT.
 
 > **⚠️ Early-stage development:**
-> This is early-stage experimental software. No official support is provided yet. 
+> This is early-stage experimental software. No official support is provided yet.
 > For issues and feature requests, open an issue on the GitHub repository: https://github.com/futureproofhomes/Satellite1-RPi/issues
 
 ## Overview
@@ -155,32 +155,37 @@ Review and edit the draft release before publishing it.
 
 ```bash
 cd satellite1-rpi
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv sync --extra dev
 ```
 
-For daemon and CLI development, install the development extra:
+Install the Git hooks once per clone:
 
 ```bash
-pip install -e ".[dev]"
+uv run pre-commit install
 ```
 
 ### Running tests
 
 ```bash
 cd satellite1-rpi
-pytest
+uv run pytest
 ```
 
-### Code style
+### Quality checks
 
-Format with `black`:
+Run the same checks enforced by hooks and CI:
 
 ```bash
 cd satellite1-rpi
-black src/
+uv run ruff format --check
+uv run ruff check
+uv run mypy
+uv run pytest
 ```
+
+Format and apply safe lint fixes with `uv run ruff format` and
+`uv run ruff check --fix`. Mypy currently checks the public client, CLI, and
+daemon packages; the hardware package is being typed separately.
 
 ## CLI Usage
 

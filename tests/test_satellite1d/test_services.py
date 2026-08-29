@@ -112,7 +112,9 @@ def test_dac_service_controls_volume_and_mute(factory, service_type, output):
         assert dac.operations == ["setup", "set-volume", "mute", "unmute"]
         expected_events = [VolumeChanged(output, 0.75)]
         if output == "speaker":
-            expected_events.extend([SpeakerMuteChanged(True), SpeakerMuteChanged(False)])
+            expected_events.extend(
+                [SpeakerMuteChanged(True), SpeakerMuteChanged(False)]
+            )
         assert events.events == expected_events
 
     asyncio.run(run())
@@ -201,7 +203,9 @@ def test_xmos_reset_service_controls_reset_output():
 
     async def run() -> None:
         output = ResetOutput()
-        with patch("satellite1d.services.gpio.XmosResetPin", return_value=output) as pin:
+        with patch(
+            "satellite1d.services.gpio.XmosResetPin", return_value=output
+        ) as pin:
             service = XmosResetService("/dev/gpiochip4")
             await service.start()
 

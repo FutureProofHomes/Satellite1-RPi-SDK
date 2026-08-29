@@ -5,12 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-from pathlib import Path
 import sys
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TypeVar
 
-from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
+from satellite1 import DEFAULT_SOCKET_PATH, AsyncSatellite1Client
 
 log = logging.getLogger(__name__)
 

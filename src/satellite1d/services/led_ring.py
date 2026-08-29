@@ -92,7 +92,10 @@ class LedRingService:
         ):
             raise ValueError("overlay pixel index is outside the LED ring")
         LedFrame.from_pixels(
-            [pixels.get(index, (0, 0, 0)) for index in range(len(self._active_frame.pixels))]
+            [
+                pixels.get(index, (0, 0, 0))
+                for index in range(len(self._active_frame.pixels))
+            ]
         )
         self._overlays[name] = dict(pixels)
         self._queue(self._active_frame)

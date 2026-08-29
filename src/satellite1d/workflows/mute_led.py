@@ -48,7 +48,9 @@ class MuteLedWorkflow:
 
     async def start(self) -> None:
         if self._task is not None:
-            await self._set_microphone_muted(await self._microphones.get_microphone_mute())
+            await self._set_microphone_muted(
+                await self._microphones.get_microphone_mute()
+            )
             await self._set_speaker_muted(await self._speaker.is_muted())
             return
         self._subscriber = self._events.subscribe()

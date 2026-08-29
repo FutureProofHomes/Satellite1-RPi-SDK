@@ -38,7 +38,14 @@ class XmosAvailabilityChanged:
     available: bool
 
 
-DaemonEvent: TypeAlias = ButtonPressed | MicMuteChanged | SpeakerMuteChanged | VolumeChanged | LineOutJackChanged | XmosAvailabilityChanged
+DaemonEvent: TypeAlias = (
+    ButtonPressed
+    | MicMuteChanged
+    | SpeakerMuteChanged
+    | VolumeChanged
+    | LineOutJackChanged
+    | XmosAvailabilityChanged
+)
 
 
 class EventPublisher(Protocol):

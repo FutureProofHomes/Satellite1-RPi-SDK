@@ -1,9 +1,12 @@
 """TOML loading for daemon-owned machine configuration."""
 
 from __future__ import annotations
-from pathlib import Path
-from typing import Any, Mapping, TypeVar, Iterable
+
 import tomllib
+from collections.abc import Iterable, Mapping
+from pathlib import Path
+from typing import Any, TypeVar
+
 from pydantic import BaseModel
 
 DEFAULT_CONF = Path("/etc/satellite1.conf")

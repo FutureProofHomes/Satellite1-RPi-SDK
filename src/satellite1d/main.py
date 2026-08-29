@@ -52,7 +52,9 @@ async def _run(args: argparse.Namespace) -> None:
     adapter: UnixSocketAdapter | None = None
     try:
         await runtime.start()
-        adapter = UnixSocketAdapter(runtime.commands, args.socket, events=runtime.events)
+        adapter = UnixSocketAdapter(
+            runtime.commands, args.socket, events=runtime.events
+        )
         await adapter.start()
         logging.getLogger(__name__).info("listening on %s", args.socket)
         await adapter.serve_forever()
