@@ -12,10 +12,7 @@ def volume_frame(volume: float, color: LedColor, muted_color: LedColor) -> LedFr
     level = LED_RING_PIXEL_COUNT * volume
     return LedFrame.from_pixels(
         [
-            tuple(
-                int(channel * min(1.0, max(0.0, level - index)))
-                for channel in color
-            )
+            tuple(int(channel * min(1.0, max(0.0, level - index))) for channel in color)
             for index in range(LED_RING_PIXEL_COUNT)
         ]
     )

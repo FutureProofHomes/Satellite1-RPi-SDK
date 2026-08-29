@@ -32,6 +32,7 @@ class EvdevButtonSink:
         return validated
 
     def emit(self, event: DaemonEvent) -> None:
+        name: str
         if isinstance(event, ButtonPressed):
             name = event.name
         elif isinstance(event, MicMuteChanged):

@@ -134,7 +134,10 @@ def test_server_closes_event_streams_on_shutdown():
                 + b"\n"
             )
             await writer.drain()
-            assert json.loads(await reader.readline()) == {"id": 1, "result": {"subscribed": True}}
+            assert json.loads(await reader.readline()) == {
+                "id": 1,
+                "result": {"subscribed": True},
+            }
             assert events.has_subscribers
 
             await server.close()

@@ -57,7 +57,7 @@ endif
 
 .PHONY: print-meta
 print-meta:
-	@echo "PYPROJ_VERSION=$(PYPROJ_VERSION)" 
+	@echo "PYPROJ_VERSION=$(PYPROJ_VERSION)"
 	@echo "GIT_NAME=$(GIT_NAME)"
 	@echo "GIT_EMAIL=$(GIT_EMAIL)"
 

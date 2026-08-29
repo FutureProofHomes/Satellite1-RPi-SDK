@@ -19,7 +19,7 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 daemon = ["evdev>=1.6", "gpiod>=2.2", "pydantic>=2.13,<3"]
-dev = ["pydantic>=2.13,<3", "pytest", "black"]
+dev = ["pydantic>=2.13,<3", "pytest", "mypy", "pre-commit", "ruff"]
 
 
 [tool.setuptools]
@@ -40,8 +40,38 @@ satellite1d = "satellite1d.main:main"
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
+git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = ["third_party", "src/satellite1_hw", "tests/test_components", "tests/test_xmos.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["satellite1", "satellite1_cli", "satellite1_hw", "satellite1d"]
+
+[tool.mypy]
+files = ["src/satellite1", "src/satellite1_cli", "src/satellite1d"]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "satellite1_hw.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "evdev.*"
+ignore_missing_imports = true

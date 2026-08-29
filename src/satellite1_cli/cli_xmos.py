@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import TypeVar
 
-from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
+from satellite1 import DEFAULT_SOCKET_PATH, AsyncSatellite1Client
+
+T = TypeVar("T")
 
 
-async def _request(args: argparse.Namespace, operation):
+async def _request(
+    args: argparse.Namespace,
+    operation: Callable[[AsyncSatellite1Client], Awaitable[T]],
+) -> T:
     async with AsyncSatellite1Client(args.socket) as satellite:
         return await operation(satellite)
 

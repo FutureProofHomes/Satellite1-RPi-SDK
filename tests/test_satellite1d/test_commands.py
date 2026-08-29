@@ -9,9 +9,7 @@ def test_health_reports_available_hardware():
             self.available = available
 
     async def run() -> None:
-        commands = DaemonCommands(
-            object(), Service(True), Service(True), Service(True)
-        )
+        commands = DaemonCommands(object(), Service(True), Service(True), Service(True))
         assert await commands.health() == {
             "status": "healthy",
             "dac": True,
@@ -51,9 +49,7 @@ def test_led_commands_queue_complete_frames_and_clear_them():
 
     async def run() -> None:
         led_ring = LedRing()
-        commands = DaemonCommands(
-            object(), Service(), Service(), Service(), led_ring
-        )
+        commands = DaemonCommands(object(), Service(), Service(), Service(), led_ring)
         assert commands.led_ring_enabled
         assert await commands.dispatch("led.render", {"pixels": [[1, 2, 3]] * 24}) == {
             "ok": True

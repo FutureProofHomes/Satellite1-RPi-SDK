@@ -15,10 +15,10 @@ Homepage: https://github.com/futureproofhomes/Satellite1-RPi
 
 Package: satellite1-rpi-sdk
 Architecture: any
-Depends: 
+Depends:
   ${misc:Depends},
-  python3-venv, 
-  python3-pip, 
+  python3-venv,
+  python3-pip,
   flashrom,
   libgpiod3
 Description: Satellite1 hardware daemon and command-line client

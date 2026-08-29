@@ -3,9 +3,8 @@ from types import SimpleNamespace
 import pytest
 
 from satellite1_hw.sat1_hat import decode_buttons
-from satellite1d.event_sinks.evdev import EvdevButtonSink
 from satellite1d.config import ButtonEvdevConfig, ButtonsConfig
-from satellite1d.config_load import load_from_toml
+from satellite1d.event_sinks.evdev import EvdevButtonSink
 
 
 def _status(port_a: int, *, device_status: int = 0, port_b: int = 0):

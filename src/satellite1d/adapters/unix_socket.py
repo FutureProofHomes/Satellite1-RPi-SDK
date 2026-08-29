@@ -184,8 +184,13 @@ class UnixSocketAdapter:
             writer.write(
                 json.dumps(success(request_id, {"subscribed": True})).encode() + b"\n"
             )
-            for event in initial:
-                writer.write(json.dumps(_event_payload(event), separators=(",", ":")).encode() + b"\n")
+            for initial_event in initial:
+                writer.write(
+                    json.dumps(
+                        _event_payload(initial_event), separators=(",", ":")
+                    ).encode()
+                    + b"\n"
+                )
             await writer.drain()
             while True:
                 event_task = asyncio.create_task(subscriber.get())
@@ -202,11 +207,12 @@ class UnixSocketAdapter:
                         pass
                 if disconnect_task in done:
                     return
-                event = event_task.result()
+                event: DaemonEvent | None = event_task.result()
                 if event is None:
                     return
                 writer.write(
-                    json.dumps(_event_payload(event), separators=(",", ":")).encode() + b"\n"
+                    json.dumps(_event_payload(event), separators=(",", ":")).encode()
+                    + b"\n"
                 )
                 await writer.drain()
         finally:
@@ -299,5 +305,8 @@ def _event_payload(event: DaemonEvent) -> dict[str, Any]:
             "data": {"output": event.output, "volume": event.volume},
         }
     if isinstance(event, LineOutJackChanged):
-        return {"event": "audio.line_out_jack_changed", "data": {"plugged_in": event.plugged_in}}
+        return {
+            "event": "audio.line_out_jack_changed",
+            "data": {"plugged_in": event.plugged_in},
+        }
     raise TypeError(f"unsupported event: {event!r}")

@@ -4,10 +4,10 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import Literal, cast
 
-from satellite1_hw.sat1_hat import XMOS
 from satellite1_hw.components.flashrom_wrapper import flash_xmos_firmware
-
+from satellite1_hw.sat1_hat import XMOS
 from satellite1d.contracts.events import (
     ButtonPressed,
     EventPublisher,
@@ -92,7 +92,7 @@ class XmosService:
         async with self._lock:
             self._require_available()
             firmware = await asyncio.to_thread(self._driver.read_firmware)
-        if firmware is None:
+        if not isinstance(firmware, str):
             raise XmosUnavailableError("failed to read XMOS firmware")
         return firmware
 
@@ -132,7 +132,9 @@ class XmosService:
                     try:
                         if not await self._reset.unset_flash_mode():
                             cleanup_errors.append(
-                                XmosUnavailableError("failed to exit XMOS flashing mode")
+                                XmosUnavailableError(
+                                    "failed to exit XMOS flashing mode"
+                                )
                             )
                     except Exception as exc:
                         cleanup_errors.append(exc)
@@ -155,7 +157,7 @@ class XmosService:
             buttons = await asyncio.to_thread(self._driver.read_buttons)
         if buttons is None:
             raise XmosUnavailableError("failed to read microphone mute state")
-        return buttons.mic_mute
+        return bool(buttons.mic_mute)
 
     # LedFrameRenderer
 
@@ -225,13 +227,19 @@ class XmosService:
         now = asyncio.get_running_loop().time()
         for name, pressed in sample.items():
             previous = self._button_previous[name]
-            changed = pressed != previous if name == "mic_mute" else pressed and not previous
+            changed = (
+                pressed != previous if name == "mic_mute" else pressed and not previous
+            )
             if changed and now - self._last_button_event[name] > DEBOUNCE_SECONDS:
                 self._last_button_event[name] = now
                 if name == "mic_mute":
                     self._events.publish(MicMuteChanged(muted=pressed))
                 else:
-                    self._events.publish(ButtonPressed(name))
+                    self._events.publish(
+                        ButtonPressed(
+                            cast(Literal["volume_up", "volume_down", "action"], name)
+                        )
+                    )
         self._button_previous = sample.copy()
 
     def _reset_button_filter(self) -> None:

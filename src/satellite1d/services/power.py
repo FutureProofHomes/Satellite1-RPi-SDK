@@ -1,7 +1,6 @@
 """Power-delivery contract reader."""
 
 from satellite1_hw.components.power_delivery import get_pd_contract
-
 from satellite1d.contracts.power import PowerContract
 
 

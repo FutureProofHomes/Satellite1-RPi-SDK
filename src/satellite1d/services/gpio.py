@@ -4,7 +4,6 @@ import asyncio
 import logging
 
 from satellite1_hw.sat1_hat import ActionButton, XmosResetPin
-
 from satellite1d.contracts.events import ButtonPressed, EventPublisher
 
 log = logging.getLogger(__name__)
@@ -90,25 +89,24 @@ class XmosResetService:
 
     async def reset_xmos(self) -> bool:
         async with self._lock:
-            self._require_started()
-            self._reset_pin.hold()
+            reset_pin = self._require_started()
+            reset_pin.hold()
             await asyncio.sleep(0.1)
-            self._reset_pin.release()
+            reset_pin.release()
             await asyncio.sleep(0.1)
             return True
 
     async def set_flash_mode(self) -> bool:
         async with self._lock:
-            self._require_started()
-            self._reset_pin.hold()
+            self._require_started().hold()
             return True
 
     async def unset_flash_mode(self) -> bool:
         async with self._lock:
-            self._require_started()
-            self._reset_pin.release()
+            self._require_started().release()
             return True
 
-    def _require_started(self) -> None:
+    def _require_started(self) -> XmosResetPin:
         if self._reset_pin is None:
             raise RuntimeError("XMOS reset service is not started")
+        return self._reset_pin

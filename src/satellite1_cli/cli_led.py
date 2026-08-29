@@ -26,7 +26,9 @@ def _handle(args: argparse.Namespace) -> int:
             if args.cmd == "clear":
                 await satellite.led.clear()
             else:
-                await satellite.led.render_frame([(args.red, args.green, args.blue)] * LED_COUNT)
+                await satellite.led.render_frame(
+                    [(args.red, args.green, args.blue)] * LED_COUNT
+                )
 
     asyncio.run(run())
     return 0

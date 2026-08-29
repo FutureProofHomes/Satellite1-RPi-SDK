@@ -10,7 +10,7 @@ satellite1-rpi-sdk (0.2.0) trixie; urgency=medium
 
 satellite1-rpi-sdk (0.1.5) bookworm; urgency=medium
 
-  * dac setup fix 
+  * dac setup fix
 
  -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Mon, 01 Dec 2025 21:48:08 +0000
 

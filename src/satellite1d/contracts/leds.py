@@ -19,7 +19,9 @@ class LedFrame:
     @classmethod
     def from_pixels(cls, pixels: Sequence[Sequence[int]]) -> "LedFrame":
         if len(pixels) != LED_RING_PIXEL_COUNT:
-            raise ValueError(f"expected {LED_RING_PIXEL_COUNT} pixels, got {len(pixels)}")
+            raise ValueError(
+                f"expected {LED_RING_PIXEL_COUNT} pixels, got {len(pixels)}"
+            )
         frame: list[LedColor] = []
         for index, color in enumerate(pixels):
             if (
@@ -27,7 +29,9 @@ class LedFrame:
                 or isinstance(color, (str, bytes))
                 or len(color) != 3
             ):
-                raise ValueError(f"pixel {index} must contain exactly three RGB channels")
+                raise ValueError(
+                    f"pixel {index} must contain exactly three RGB channels"
+                )
             red, green, blue = color
             if any(
                 not isinstance(channel, int)

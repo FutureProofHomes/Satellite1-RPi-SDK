@@ -1,13 +1,12 @@
 # tests/test_cli_root.py
 #
 # Adjust this import to match your package layout, e.g.:
-from satellite1_cli import cli_sat1 as cli_mod
-
-
 import argparse
 import logging
 
 import pytest
+
+from satellite1_cli import cli_sat1 as cli_mod
 
 
 @pytest.mark.parametrize(
@@ -56,8 +55,10 @@ def test_main_invokes_handler_and_returns_code(monkeypatch):
     def fake_register_dacs(sp):
         # Register a 'dac' subcommand whose handler returns 7
         p = sp.add_parser("dac", help="fake dac")
+
         def handler(args):
             return 7
+
         p.set_defaults(_handler=handler)
 
     def fake_register_xmos(sp):

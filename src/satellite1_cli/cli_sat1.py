@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import argparse
 import asyncio
 import logging
 from pathlib import Path
 
-from satellite1 import AsyncSatellite1Client, DEFAULT_SOCKET_PATH
+from satellite1 import DEFAULT_SOCKET_PATH, AsyncSatellite1Client, PowerContract
+
 from .cli_dac import register as register_dacs
 from .cli_led import register as register_led
 from .cli_xmos import register as register_xmos
@@ -19,7 +21,9 @@ def _configure_logging(verbosity: int) -> None:
     level = (
         logging.WARNING
         if verbosity <= 0
-        else logging.INFO if verbosity == 1 else logging.DEBUG
+        else logging.INFO
+        if verbosity == 1
+        else logging.DEBUG
     )
     logging.basicConfig(
         level=level,
@@ -30,9 +34,9 @@ def _configure_logging(verbosity: int) -> None:
     log.debug("Logging configured at level=%s", logging.getLevelName(level))
 
 
-def register_pd(sp: argparse._SubParsersAction):
+def register_pd(sp: argparse._SubParsersAction) -> None:
     def _handle(args: argparse.Namespace) -> int:
-        async def get_contract():
+        async def get_contract() -> PowerContract | None:
             async with AsyncSatellite1Client(args.socket) as satellite:
                 return await satellite.power.get_contract()
 
