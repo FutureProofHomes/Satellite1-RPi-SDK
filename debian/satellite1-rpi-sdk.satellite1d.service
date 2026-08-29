@@ -1,7 +1,6 @@
 [Unit]
 Description=Satellite1 hardware daemon
-Wants=dev-i2c\x2d1.device
-After=dev-i2c\x2d1.device sound.target
+After=sound.target
 
 [Service]
 Type=simple
@@ -10,6 +9,7 @@ Group=satellite1
 SupplementaryGroups=gpio i2c spi
 RuntimeDirectory=satellite1
 RuntimeDirectoryMode=0750
+ExecStartPre=/usr/bin/test -c /dev/i2c-1
 ExecStart=/opt/satellite1/venv/bin/satellite1d
 Restart=on-failure
 RestartSec=2

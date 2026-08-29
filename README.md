@@ -29,7 +29,7 @@ This creates:
 - Python virtual environment at `/opt/satellite1/venv`
 - CLI binaries (`sat1`, `sat1-dac`, `sat1-speaker`, `sat1-lineout`, and
   `sat1-xmos`) and `satellite1d` in `/usr/bin/`
-- `satellite1d.service` to own hardware and initialize DAC at boot
+- `satellite1d.service` to own hardware and initialize DACs when XMOS is ready
 
 No reboot required.
 
@@ -49,7 +49,7 @@ Test the CLI:
 
 ```bash
 sat1 pd                # Show USB-C power contract status
-sat1 dac status        # Show DAC status
+sat1 dac volume        # Show active DAC volume
 sat1 xmos read-firmware  # Show XMOS firmware version
 ```
 
@@ -204,14 +204,14 @@ sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
 
 | Subcommand | Description                              |
 | ------------ | ------------------------------------------ |
-| `dac`      | Audio DAC controls (volume, mute, setup) |
+| `dac`      | Audio DAC controls (volume, mute, amp level) |
 | `xmos`     | XMOS firmware and interface management   |
 | `pd`       | USB-C Power Delivery status              |
 
 ### DAC Commands
 
 ```bash
-sat1 dac {volume|set-volume|mute|unmute|setup|plugged-in|status} [options]
+sat1 dac {volume|set-volume|mute|unmute|amp-level|set-amp-level|plugged-in} [options]
 ```
 
 
@@ -221,36 +221,32 @@ sat1 dac {volume|set-volume|mute|unmute|setup|plugged-in|status} [options]
 | `set-volume` | Set volume (0.0 – 1.0)             |
 | `mute`       | Mute line-out or speaker            |
 | `unmute`     | Unmute output                       |
-| `setup`      | Initialize DAC hardware             |
+| `amp-level` | Read speaker amp level              |
+| `set-amp-level` | Set speaker amp level           |
 | `plugged-in` | Detect if headphones are plugged in |
-| `status`     | Show complete DAC status            |
 
 #### DAC Selection
 
 Use `--dac` to target a specific output:
 
 ```bash
-sat1 dac volume --dac line-out    # Line-out RCA
-sat1 dac volume --dac speaker     # Built-in speaker
-sat1 dac volume --dac auto        # Auto-detect (default)
+sat1 dac --dac line-out volume    # Line-out RCA
+sat1 dac --dac speaker volume     # Built-in speaker
+sat1 dac --dac auto volume        # Auto-detect (default)
 ```
 
 ### XMOS Commands
 
 ```bash
-sat1 xmos {setup|read-firmware|read-status|reset|enable-flashing|disable-flashing|set-mic-output|flash-firmware}
+sat1 xmos {read-firmware|read-status|reset|flash-firmware}
 ```
 
 
 | Command            | Description                       |
 | -------------------- | ----------------------------------- |
-| `setup`            | Initialize SPI and GPIO pins      |
 | `read-firmware`    | Read firmware version string      |
 | `read-status`      | Read XMOS status register         |
 | `reset`            | Toggle XMOS reset line            |
-| `enable-flashing`  | Enter firmware flashing mode      |
-| `disable-flashing` | Exit flashing mode                |
-| `set-mic-output`   | Configure I²S microphone routing |
 | `flash-firmware`   | Flash new XMOS firmware           |
 
 ### Power Delivery
@@ -279,6 +275,52 @@ Override with:
 satellite1d --config /path/to/custom.conf
 ```
 
+### GPIO Controller
+
+The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default.
+If the Raspberry Pi header GPIO controller has a different path on the target
+kernel, configure it explicitly:
+
+```toml
+[gpio]
+chip = "/dev/gpiochip4"
+```
+
+### Buttons
+
+HAT buttons can optionally be exposed as a standard Linux input device. This
+is disabled by default: uncomment one or more mappings in
+`[buttons.evdev]` to enable it.
+
+```toml
+[buttons.evdev]
+volume_up = "KEY_VOLUMEUP"
+volume_down = "KEY_VOLUMEDOWN"
+action = "KEY_MUTE"
+mic_mute = "KEY_MICMUTE"
+```
+
+Mappings use Linux `KEY_*` names. An empty value disables one button. The
+daemon validates mappings at startup and fails clearly on an unknown key name.
+It debounces the XMOS status samples and emits button-press events through a
+virtual `Satellite1 Buttons` input device. The mic-mute button is still owned
+by XMOS firmware; its optional event only reports that physical press.
+
+Use `evtest` to inspect the device after enabling mappings. The daemon needs
+no extra process or root privileges: the package grants its `satellite1`
+service group access to `/dev/uinput`.
+
+### Volume Buttons
+
+Enable the optional volume-button workflow to adjust the active output by a
+fixed step. It selects line-out when a jack is plugged in and speaker otherwise.
+
+```toml
+[workflows.volume-buttons]
+enabled = true
+step = 0.05
+```
+
 ## Python API
 
 The public Python API connects to `satellite1d` through its local Unix socket.
@@ -295,8 +337,9 @@ async with AsyncSatellite1Client() as satellite:
 ```
 
 The client provides `health()`, `satellite.power.get_contract()`, DAC controls,
-and all XMOS operations exposed by the daemon. It requires the same socket access as
-the `sat1` command: add the application user to the `satellite1` group.
+and XMOS firmware, status, reset, and flashing operations. It requires the same
+socket access as the `sat1` command: add the application user to the
+`satellite1` group.
 
 ### Direct hardware access
 

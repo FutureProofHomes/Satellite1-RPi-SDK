@@ -4,7 +4,8 @@ import subprocess
 import pytest
 
 import satellite1_hw.components.flashrom_wrapper as fw_mod
-from satellite1_hw.sat1_hat import XMOS
+from satellite1_hw.components.flashrom_wrapper import flash_xmos_firmware
+from satellite1_hw.sat1_hat import ActionButton, XMOS, XmosResetPin
 
 
 def test_fw_from_bytes_parses():
@@ -13,21 +14,27 @@ def test_fw_from_bytes_parses():
     assert x._fw_from_bytes(bytes([1,2,3,1,5])) == "v1.2.3-alpha.5"
 
 
-def _flash_mode_spy(monkeypatch):
-    """XMOS instance whose flash-mode toggles are recorded instead of touching
-    GPIO, with the settle sleep stubbed out for fast tests."""
-    x = XMOS()
-    calls = []
-    monkeypatch.setattr(x, "set_flash_mode", lambda: calls.append("set"))
-    monkeypatch.setattr(x, "unset_flash_mode", lambda: calls.append("unset"))
-    monkeypatch.setattr("satellite1_hw.sat1_hat.time.sleep", lambda *a, **k: None)
-    return x, calls
+def test_direct_gpio_pins_accept_a_configured_chip(monkeypatch):
+    input_calls = []
+    output_calls = []
+
+    monkeypatch.setattr(
+        "satellite1_hw.sat1_hat.GpioInput",
+        lambda *args, **kwargs: input_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        "satellite1_hw.sat1_hat.GpioOutput",
+        lambda *args, **kwargs: output_calls.append((args, kwargs)),
+    )
+
+    ActionButton("/dev/gpiochip4")
+    XmosResetPin("/dev/gpiochip4")
+
+    assert input_calls == [((7,), {"chip": "/dev/gpiochip4", "pull_up": True})]
+    assert output_calls == [((5,), {"chip": "/dev/gpiochip4", "initial": False})]
 
 
-def test_flash_firmware_releases_flash_mode_on_failure(tmp_path, monkeypatch):
-    """A failed write must still release the XMOS from reset (finally block),
-    otherwise the chip is stuck held in reset until the next power cycle."""
-    x, calls = _flash_mode_spy(monkeypatch)
+def test_flash_xmos_firmware_does_not_own_reset_on_failure(tmp_path, monkeypatch):
 
     class _BoomFlasher:
         def confirm_chip(self):
@@ -45,17 +52,12 @@ def test_flash_firmware_releases_flash_mode_on_failure(tmp_path, monkeypatch):
     img.write_bytes(b"x")
 
     with pytest.raises(RuntimeError):
-        x.flash_firmware(img)
-
-    assert calls == ["set", "unset"]
+        flash_xmos_firmware(img)
 
 
-def test_flash_firmware_missing_image_never_enters_flash_mode(tmp_path, monkeypatch):
-    """A missing image is rejected before the XMOS is put into reset."""
-    x, calls = _flash_mode_spy(monkeypatch)
+def test_flash_xmos_firmware_rejects_a_missing_image(tmp_path):
     with pytest.raises(ValueError):
-        x.flash_firmware(tmp_path / "does-not-exist.bin")
-    assert calls == []
+        flash_xmos_firmware(tmp_path / "does-not-exist.bin")
 
 
 def test_write_image_uses_a_writable_temp_file_for_padding(tmp_path, monkeypatch):

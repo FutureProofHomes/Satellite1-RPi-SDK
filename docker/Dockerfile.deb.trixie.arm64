@@ -10,6 +10,7 @@ RUN dpkg --add-architecture arm64 && apt-get update && \
       crossbuild-essential-arm64 \
       binutils-aarch64-linux-gnu \
       libbcm2835-dev:arm64 \
+      libgpiod-dev:arm64 \
       libc6-dev:arm64 libstdc++-12-dev:arm64 libusb-1.0-0-dev:arm64 \
       # packaging stack
       devscripts debhelper dh-python dpkg-dev fakeroot \

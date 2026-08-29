@@ -4,11 +4,11 @@ from pathlib import Path
 import textwrap
 from typing import ClassVar, List, Literal
 
-import pytest
 from pydantic import BaseModel, Field, ConfigDict
 
 # Import the generic loader
 from satellite1d.config_load import load_from_toml
+from satellite1d.config import load_daemon_config
 
 
 class DummyConfig(BaseModel):
@@ -169,3 +169,18 @@ def test_missing_file_uses_defaults(tmp_path: Path):
     assert (cfg.enabled, cfg.level, cfg.mode, cfg.count, cfg.tags) == (
         False, 0.5, "auto", 1, []
     )
+
+
+def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
+    default = load_daemon_config(tmp_path / "nope.toml")
+    assert default.gpio.chip == "/dev/gpiochip0"
+
+    cfg_file = tmp_path / "conf.toml"
+    write_toml(
+        cfg_file,
+        """
+        [gpio]
+        chip = "/dev/gpiochip4"
+        """,
+    )
+    assert load_daemon_config(cfg_file).gpio.chip == "/dev/gpiochip4"

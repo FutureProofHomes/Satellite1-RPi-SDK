@@ -5,10 +5,21 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from collections.abc import AsyncIterator
 from typing import Any, Literal
 
 from ._protocol import PROTOCOL_VERSION
-from .models import DacStatus, DaemonInfo, HardwareHealth, PowerContract, XmosStatus
+from .models import (
+    ButtonPressed,
+    DaemonInfo,
+    HardwareHealth,
+    MicMuteChanged,
+    LineOutJackChanged,
+    PowerContract,
+    Satellite1Event,
+    VolumeChanged,
+    XmosStatus,
+)
 
 DEFAULT_SOCKET_PATH = Path("/run/satellite1/satellite1d.sock")
 DacName = Literal["auto", "line-out", "speaker"]
@@ -49,6 +60,8 @@ class AsyncSatellite1Client:
         self._next_request_id = 1
         self.power = _PowerClient(self)
         self.dac = _DacClient(self)
+        self.events = _EventsClient(self)
+        self.mics = _MicsClient(self)
         self.xmos = _XmosClient(self)
 
     async def __aenter__(self) -> "AsyncSatellite1Client":
@@ -176,9 +189,6 @@ class _DacClient:
     def __init__(self, client: AsyncSatellite1Client) -> None:
         self._client = client
 
-    async def setup(self) -> None:
-        _ok(await self._client._request("dac.setup"))
-
     async def get_volume(self, dac: DacName = "auto") -> float:
         return _number(
             await self._client._request("dac.get_volume", {"dac": dac}), "volume"
@@ -214,17 +224,86 @@ class _DacClient:
     async def is_line_out_plugged_in(self) -> bool:
         return _bool(await self._client._request("dac.get_plugged_in"), "plugged_in")
 
-    async def get_status(self) -> DacStatus:
-        result = await self._client._request("dac.get_status")
-        return DacStatus(_string(result, "line_out"), _string(result, "speaker"))
+
+class _MicsClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def get_muted(self) -> bool:
+        return _bool(await self._client._request("mics.get_muted"), "muted")
+
+
+class _EventsClient:
+    def __init__(self, client: AsyncSatellite1Client) -> None:
+        self._client = client
+
+    async def subscribe(
+        self, *, include_current: bool = True
+    ) -> AsyncIterator[Satellite1Event]:
+        """Yield daemon events from a dedicated local socket connection."""
+        try:
+            async with asyncio.timeout(self._client.timeout):
+                reader, writer = await asyncio.open_unix_connection(
+                    self._client.socket_path
+                )
+        except (OSError, TimeoutError) as exc:
+            raise Satellite1ConnectionError(
+                f"cannot subscribe to satellite1d at {self._client.socket_path}: {exc}"
+            ) from exc
+        try:
+            writer.write(
+                json.dumps(
+                    {
+                        "id": 1,
+                        "method": "events.subscribe",
+                        "params": {"include_current": include_current},
+                    }
+                ).encode()
+                + b"\n"
+            )
+            await writer.drain()
+            async with asyncio.timeout(self._client.timeout):
+                response = await reader.readline()
+            if not response:
+                raise Satellite1ConnectionError("satellite1d closed the event stream")
+            payload = json.loads(response)
+            if not isinstance(payload, dict) or payload.get("id") != 1:
+                raise Satellite1ProtocolError(
+                    "satellite1d returned an invalid response"
+                )
+            if "error" in payload:
+                error = payload["error"]
+                if not isinstance(error, dict):
+                    raise Satellite1ProtocolError(
+                        "satellite1d returned an invalid error"
+                    )
+                raise Satellite1DaemonError(
+                    _string(error, "code"), _string(error, "message")
+                )
+            if payload.get("result") != {"subscribed": True}:
+                raise Satellite1ProtocolError(
+                    "satellite1d rejected the event subscription"
+                )
+            while line := await reader.readline():
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise Satellite1ProtocolError(
+                        "satellite1d returned invalid event JSON"
+                    ) from exc
+                yield _event(event)
+            raise Satellite1ConnectionError("satellite1d closed the event stream")
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
 
 class _XmosClient:
     def __init__(self, client: AsyncSatellite1Client) -> None:
         self._client = client
-
-    async def setup(self) -> None:
-        _ok(await self._client._request("xmos.setup"))
 
     async def get_firmware(self) -> str:
         return _string(await self._client._request("xmos.get_firmware"), "firmware")
@@ -237,21 +316,8 @@ class _XmosClient:
             _integer(result, "gpio_port_b"),
         )
 
-    async def set_mic_output(self, left: int, right: int) -> None:
-        _ok(
-            await self._client._request(
-                "xmos.set_mic_output", {"left": left, "right": right}
-            )
-        )
-
     async def reset(self) -> None:
         _ok(await self._client._request("xmos.reset"))
-
-    async def enable_flashing(self) -> bool:
-        return _bool(await self._client._request("xmos.enable_flashing"), "ok")
-
-    async def disable_flashing(self) -> None:
-        _ok(await self._client._request("xmos.disable_flashing"))
 
     async def flash_firmware(self, path: Path | str, verify: bool = False) -> bool:
         return _bool(
@@ -262,6 +328,28 @@ class _XmosClient:
             ),
             "ok",
         )
+
+
+def _event(value: Any) -> Satellite1Event:
+    if not isinstance(value, dict):
+        raise Satellite1ProtocolError("satellite1d returned an invalid event")
+    name = value.get("event")
+    data = value.get("data")
+    if not isinstance(data, dict):
+        raise Satellite1ProtocolError("satellite1d returned an invalid event")
+    if name == "buttons.pressed":
+        button = _string(data, "name")
+        if button in {"volume_up", "volume_down", "action"}:
+            return ButtonPressed(button)
+    if name == "mics.muted_changed":
+        return MicMuteChanged(_bool(data, "muted"))
+    if name == "audio.volume_changed":
+        output = _string(data, "output")
+        if output in {"line-out", "speaker"}:
+            return VolumeChanged(output, _number(data, "volume"))
+    if name == "audio.line_out_jack_changed":
+        return LineOutJackChanged(_bool(data, "plugged_in"))
+    raise Satellite1ProtocolError("satellite1d returned an unsupported event")
 
 
 def _bool(result: dict[str, Any], name: str) -> bool:

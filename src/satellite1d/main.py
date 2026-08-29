@@ -7,9 +7,10 @@ import asyncio
 import logging
 from pathlib import Path
 
+from .adapters.unix_socket import DEFAULT_SOCKET_PATH, UnixSocketAdapter
 from .config import load_daemon_config
-from .hardware import DEFAULT_LOCK_PATH, HardwareController
-from .server import DEFAULT_SOCKET_PATH, Satellite1dServer
+from .event_sinks.evdev import EvdevButtonSink
+from .runtime import DEFAULT_LOCK_PATH, DaemonRuntime
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,18 +40,29 @@ async def _run(args: argparse.Namespace) -> None:
         if args.socket == DEFAULT_SOCKET_PATH
         else args.socket.with_suffix(".lock")
     )
-    hardware = HardwareController(load_daemon_config(args.config), lock_path)
-    server: Satellite1dServer | None = None
+    config = load_daemon_config(args.config)
+    runtime = DaemonRuntime(config, lock_path)
+    events = runtime.events
+    evdev: EvdevButtonSink | None = None
+    keymap = config.buttons_evdev.keymap()
+    if keymap:
+        EvdevButtonSink.validate_keymap(keymap)
+        evdev = EvdevButtonSink(keymap)
+        events.add_sink(evdev)
+    adapter: UnixSocketAdapter | None = None
     try:
-        await hardware.start()
-        server = Satellite1dServer(hardware, args.socket)
-        await server.start()
+        await runtime.start()
+        adapter = UnixSocketAdapter(runtime.commands, args.socket, events=runtime.events)
+        await adapter.start()
         logging.getLogger(__name__).info("listening on %s", args.socket)
-        await server.serve_forever()
+        await adapter.serve_forever()
     finally:
-        if server is not None:
-            await server.close()
-        await hardware.close()
+        if adapter is not None:
+            await adapter.close()
+        await runtime.close()
+        if evdev is not None:
+            events.remove_sink(evdev)
+            evdev.close()
 
 
 def main(argv: list[str] | None = None) -> int:

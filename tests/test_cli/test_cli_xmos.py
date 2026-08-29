@@ -12,9 +12,6 @@ def requests(monkeypatch):
     calls = []
 
     class FakeXmos:
-        async def setup(self):
-            calls.append(("setup", {}))
-
         async def get_firmware(self):
             calls.append(("get_firmware", {}))
             return "v1.2.3"
@@ -23,18 +20,8 @@ def requests(monkeypatch):
             calls.append(("get_status", {}))
             return XmosStatus(1, 2, 3)
 
-        async def set_mic_output(self, left, right):
-            calls.append(("set_mic_output", {"left": left, "right": right}))
-
         async def reset(self):
             calls.append(("reset", {}))
-
-        async def enable_flashing(self):
-            calls.append(("enable_flashing", {}))
-            return True
-
-        async def disable_flashing(self):
-            calls.append(("disable_flashing", {}))
 
         async def flash_firmware(self, path, verify):
             calls.append(("flash_firmware", {"path": path, "verify": verify}))
@@ -60,7 +47,6 @@ def build_parser():
 @pytest.mark.parametrize(
     ("argv", "method", "params", "output"),
     [
-        (["setup"], "setup", {}, "True"),
         (["read-firmware"], "get_firmware", {}, "v1.2.3"),
         (
             ["read-status"],
@@ -68,15 +54,7 @@ def build_parser():
             {},
             "device_status=0x01 gpio_a=0x02 gpio_b=0x03",
         ),
-        (
-            ["set-mic-output", "1", "2"],
-            "set_mic_output",
-            {"left": 1, "right": 2},
-            "True",
-        ),
         (["reset"], "reset", {}, "True"),
-        (["enable-flashing"], "enable_flashing", {}, "True"),
-        (["disable-flashing"], "disable_flashing", {}, "True"),
         (
             ["flash-firmware", "/tmp/image.bin", "--verify"],
             "flash_firmware",

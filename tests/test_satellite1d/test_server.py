@@ -3,7 +3,8 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from satellite1d.server import Satellite1dServer
+from satellite1d.adapters.unix_socket import UnixSocketAdapter
+from satellite1d.events import EventHub
 
 
 async def _request(socket_path: Path, payload: dict) -> dict:
@@ -23,13 +24,14 @@ def _socket_path() -> Path:
 def test_server_reports_protocol_capabilities():
     async def run() -> None:
         socket_path = _socket_path()
-        server = Satellite1dServer(socket_path=socket_path)
+        server = UnixSocketAdapter(socket_path=socket_path)
         await server.start()
         try:
             response = await _request(socket_path, {"id": 1, "method": "hello"})
             assert response["id"] == 1
             assert response["result"]["service"] == "satellite1d"
             assert response["result"]["protocol_version"] == 1
+            assert response["result"]["capabilities"] == ["system.health"]
         finally:
             await server.close()
 
@@ -39,7 +41,7 @@ def test_server_reports_protocol_capabilities():
 def test_server_rejects_unknown_methods():
     async def run() -> None:
         socket_path = _socket_path()
-        server = Satellite1dServer(socket_path=socket_path)
+        server = UnixSocketAdapter(socket_path=socket_path)
         await server.start()
         try:
             response = await _request(socket_path, {"id": "x", "method": "nope"})
@@ -68,7 +70,7 @@ def test_server_routes_hardware_requests():
 
     async def run() -> None:
         socket_path = _socket_path()
-        server = Satellite1dServer(FakeHardware(), socket_path)
+        server = UnixSocketAdapter(FakeHardware(), socket_path)
         await server.start()
         try:
             response = await _request(
@@ -91,7 +93,7 @@ def test_server_routes_firmware_flash_from_socket_group():
 
     async def run() -> None:
         socket_path = _socket_path()
-        server = Satellite1dServer(FakeHardware(), socket_path)
+        server = UnixSocketAdapter(FakeHardware(), socket_path)
         await server.start()
         try:
             response = await _request(
@@ -105,5 +107,42 @@ def test_server_routes_firmware_flash_from_socket_group():
             assert response == {"id": 1, "result": {"ok": True}}
         finally:
             await server.close()
+
+    asyncio.run(run())
+
+
+def test_server_closes_event_streams_on_shutdown():
+    class Commands:
+        async def current_events(self):
+            return []
+
+    async def run() -> None:
+        socket_path = _socket_path()
+        events = EventHub()
+        server = UnixSocketAdapter(Commands(), socket_path, events)
+        await server.start()
+        reader, writer = await asyncio.open_unix_connection(socket_path)
+        try:
+            writer.write(
+                json.dumps(
+                    {
+                        "id": 1,
+                        "method": "events.subscribe",
+                        "params": {"include_current": False},
+                    }
+                ).encode()
+                + b"\n"
+            )
+            await writer.drain()
+            assert json.loads(await reader.readline()) == {"id": 1, "result": {"subscribed": True}}
+            assert events.has_subscribers
+
+            await server.close()
+
+            assert await asyncio.wait_for(reader.readline(), timeout=1) == b""
+            assert not events.has_subscribers
+        finally:
+            writer.close()
+            await writer.wait_closed()
 
     asyncio.run(run())
