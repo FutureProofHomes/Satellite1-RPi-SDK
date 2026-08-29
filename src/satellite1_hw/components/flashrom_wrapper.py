@@ -16,6 +16,18 @@ class FlashromError(RuntimeError):
         self.stdout = stdout
         self.stderr = stderr
 
+
+def flash_xmos_firmware(image: Path, verify: bool = False) -> bool:
+    """Flash the Satellite1 XMOS image through its dedicated SPI flash chip."""
+    if not image.exists():
+        raise ValueError(f"Image-file not found {image}")
+    flasher = Flashrom.for_rpi_w25q64jv(timeout=600, use_sudo=False)
+    if not flasher.confirm_chip():
+        raise FlashromError("Flash chip not found or not accessible")
+    log.info("Starting flashing of %s", image)
+    flasher.write_image(image, verify=verify)
+    return True
+
 @dataclass
 class ChipInfo:
     name: str

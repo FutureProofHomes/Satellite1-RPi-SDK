@@ -13,13 +13,12 @@ dynamic = ["version"]
 dependencies = [
     "smbus2>=0.4",
     "spidev>=3.8 ; sys_platform == 'linux'",
-    "RPi.GPIO>=0.7 ; sys_platform == 'linux' and (platform_machine == 'armv7l' or platform_machine == 'aarch64')",
 ]
 
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
-daemon = ["pydantic>=2.13,<3"]
+daemon = ["evdev>=1.6", "gpiod>=2.2", "pydantic>=2.13,<3"]
 dev = ["pydantic>=2.13,<3", "pytest", "black"]
 
 
