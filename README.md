@@ -142,9 +142,9 @@ sensor is not present or cannot be read.
 
 ### LED Ring
 
-The optional XMOS backend drives the complete 24-pixel LED ring. Frames are
-accepted into a latest-frame-wins queue, so callers should send complete frames
-without waiting for physical transmission.
+The LED ring supports XMOS device control and a direct Raspberry Pi PWM/DMA
+WS281x renderer. Frames are accepted into a latest-frame-wins queue, so callers
+should send complete frames without waiting for physical transmission.
 
 ```bash
 sat1 led set-solid 0 32 128
@@ -298,7 +298,9 @@ enabled = true
 backend = "xmos"
 ```
 
-The native WS281x backend is not included in this release.
+Set `backend = "rpi-ws281x"` to drive a WS281x ring directly through GPIO 12.
+The package installs a native renderer helper with only the raw-I/O capabilities
+required by the WS281x implementation; `satellite1d` remains unprivileged.
 
 ### Home Assistant MQTT
 

@@ -19,6 +19,7 @@ from .services.environment import EnvironmentService
 from .services.gpio import ActionButtonService, XmosResetService
 from .services.led_ring import LedRingService
 from .services.power import PowerDeliveryService
+from .services.ws281x import RpiWs281xRenderer
 from .services.xmos import XmosService
 from .workflows.jack_led import JackLedWorkflow
 from .workflows.mute_led import MuteLedWorkflow
@@ -68,9 +69,10 @@ class DaemonRuntime:
             None
         )
         self._xmos_availability_task: asyncio.Task[None] | None = None
+        renderer = self.xmos if config.led_ring.backend == "xmos" else RpiWs281xRenderer()
         self.led_ring = (
             LedRingService(
-                self.xmos,
+                renderer,
                 events=self.events,
                 system_color=config.led_ring.to_system_color(),
             )

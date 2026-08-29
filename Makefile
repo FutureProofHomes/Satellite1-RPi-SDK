@@ -30,7 +30,7 @@ DEB_TARGET    := ${OUT_DIR}/$(PACKAGE_NAME)_$(DEB_VERSION)_$(ARCH).deb
 
 BUILD_DIR     ?= ${PWD}/.debian-build/sdk
 DEBIAN_DIR    := ${BUILD_DIR}/debian
-PACKAGE_INPUTS := Makefile $(shell git ls-files debian etc udev)
+PACKAGE_INPUTS := Makefile $(shell git ls-files debian etc udev native third_party)
 
 LOCAL_VENV    ?= ${PWD}/.venv
 

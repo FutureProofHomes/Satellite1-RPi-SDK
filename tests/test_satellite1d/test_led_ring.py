@@ -12,6 +12,7 @@ from satellite1d.contracts.leds import (
 )
 from satellite1d.events import EventHub
 from satellite1d.services.led_ring import LedRingService
+from satellite1d.services.ws281x import RpiWs281xRenderer
 from satellite1d.services.xmos import XmosService
 
 
@@ -122,6 +123,64 @@ def test_xmos_service_renders_serialized_grb_frames():
         await service.render_led_frame(LedFrame.from_pixels([(1, 2, 3)] * 24))
         assert driver.payloads == [bytes((2, 1, 3)) * 24]
         await service.close()
+
+    asyncio.run(run())
+
+
+def test_ws281x_renderer_sends_a_complete_rgb_frame_to_the_helper(tmp_path, monkeypatch):
+    class Process:
+        returncode = 0
+
+        def __init__(self) -> None:
+            self.payload = None
+
+        async def communicate(self, payload):
+            self.payload = payload
+            return b"", b""
+
+    async def run() -> None:
+        helper = tmp_path / "satellite1-ws281x-render"
+        helper.touch(mode=0o755)
+        process = Process()
+
+        async def create_subprocess_exec(*args, **kwargs):
+            assert args == (str(helper),)
+            assert kwargs["stdin"] == asyncio.subprocess.PIPE
+            assert kwargs["stderr"] == asyncio.subprocess.PIPE
+            return process
+
+        monkeypatch.setattr(
+            "satellite1d.services.ws281x.asyncio.create_subprocess_exec",
+            create_subprocess_exec,
+        )
+        frame = LedFrame.from_pixels([(1, 2, 3)] + [(0, 0, 0)] * 22 + [(4, 5, 6)])
+        await RpiWs281xRenderer(helper).render_led_frame(frame)
+
+        assert process.payload == bytes((1, 2, 3)) + bytes(66) + bytes((4, 5, 6))
+
+    asyncio.run(run())
+
+
+def test_ws281x_renderer_reports_helper_failure(tmp_path, monkeypatch):
+    class Process:
+        returncode = 1
+
+        async def communicate(self, payload):
+            return b"", b"DMA error"
+
+    async def run() -> None:
+        helper = tmp_path / "satellite1-ws281x-render"
+        helper.touch(mode=0o755)
+
+        async def create_subprocess_exec(*args, **kwargs):
+            return Process()
+
+        monkeypatch.setattr(
+            "satellite1d.services.ws281x.asyncio.create_subprocess_exec",
+            create_subprocess_exec,
+        )
+        with pytest.raises(LedRingUnavailableError, match="DMA error"):
+            await RpiWs281xRenderer(helper).render_led_frame(LedFrame.clear())
 
     asyncio.run(run())
 
