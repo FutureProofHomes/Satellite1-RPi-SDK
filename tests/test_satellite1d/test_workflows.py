@@ -41,3 +41,43 @@ def test_volume_buttons_select_the_jack_active_output_and_clamp():
         assert speaker.values == [0.0]
 
     asyncio.run(run())
+
+
+def test_volume_buttons_show_a_temporary_volume_notification():
+    class LedRing:
+        def __init__(self) -> None:
+            self.notifications = []
+
+        async def show_notification(self, frame, *, duration: float) -> None:
+            self.notifications.append((frame, duration))
+
+    async def run() -> None:
+        led_ring = LedRing()
+        line_out = Volume(0.5)
+        workflow = VolumeButtonWorkflow(
+            object(),
+            Jack(plugged_in=True),
+            line_out,
+            Volume(0.5),
+            step=0.05,
+            led_ring=led_ring,
+            led_enabled=True,
+            led_color=(0, 100, 200),
+            led_muted_color=(255, 0, 0),
+            led_timeout=1.5,
+        )
+
+        await workflow._handle_event(ButtonPressed("volume_up"))
+        frame, duration = led_ring.notifications[-1]
+        assert frame.pixels[0] == (0, 100, 200)
+        assert frame.pixels[12] == (0, 100, 200)
+        assert frame.pixels[13] == (0, 20, 40)
+        assert frame.pixels[14] == (0, 0, 0)
+        assert duration == 1.5
+
+        line_out.volume = 0.05
+        await workflow._handle_event(ButtonPressed("volume_down"))
+        muted, _ = led_ring.notifications[-1]
+        assert muted.pixels == ((255, 0, 0),) + ((0, 0, 0),) * 23
+
+    asyncio.run(run())

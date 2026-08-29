@@ -5,6 +5,8 @@ import logging
 
 from satellite1d.contracts.audio import LineOutJackReader, VolumeController
 from satellite1d.contracts.events import ButtonPressed, DaemonEvent, EventSubscriber
+from satellite1d.contracts.leds import LED_RING_PIXEL_COUNT, LedFrame
+from satellite1d.services.led_ring import LedRingService
 
 log = logging.getLogger(__name__)
 
@@ -18,12 +20,21 @@ class VolumeButtonWorkflow:
         speaker: VolumeController,
         *,
         step: float,
+        led_ring: LedRingService | None = None,
+        led_enabled: bool = False,
+        led_color: tuple[int, int, int] = (0, 90, 255),
+        led_muted_color: tuple[int, int, int] = (255, 0, 0),
+        led_timeout: float = 1.5,
     ) -> None:
         self._events = events
         self._line_out_jack = line_out_jack
         self._line_out = line_out
         self._speaker = speaker
         self._step = step
+        self._led_ring = led_ring if led_enabled else None
+        self._led_color = led_color
+        self._led_muted_color = led_muted_color
+        self._led_timeout = led_timeout
         self._subscriber: asyncio.Queue[DaemonEvent | None] | None = None
         self._task: asyncio.Task[None] | None = None
 
@@ -68,4 +79,24 @@ class VolumeButtonWorkflow:
         )
         current = await controller.get_volume()
         change = self._step if event.name == "volume_up" else -self._step
-        await controller.set_volume(min(1.0, max(0.0, current + change)))
+        volume = await controller.set_volume(min(1.0, max(0.0, current + change)))
+        if self._led_ring is not None:
+            await self._led_ring.show_notification(
+                self._volume_frame(volume), duration=self._led_timeout
+            )
+
+    def _volume_frame(self, volume: float) -> LedFrame:
+        if volume == 0.0:
+            return LedFrame.from_pixels(
+                [self._led_muted_color] + [(0, 0, 0)] * (LED_RING_PIXEL_COUNT - 1)
+            )
+        level = LED_RING_PIXEL_COUNT * volume
+        return LedFrame.from_pixels(
+            [
+                tuple(
+                    int(channel * min(1.0, max(0.0, level - index)))
+                    for channel in self._led_color
+                )
+                for index in range(LED_RING_PIXEL_COUNT)
+            ]
+        )

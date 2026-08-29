@@ -331,7 +331,15 @@ fixed step. It selects line-out when a jack is plugged in and speaker otherwise.
 [workflows.volume-buttons]
 enabled = true
 step = 0.05
+led_enabled = true
+led_color = [0, 90, 255]
+led_muted_color = [255, 0, 0]
+led_timeout = 1.5
 ```
+
+When enabled, each volume-button press temporarily displays a 24-pixel volume
+bar. Zero volume displays a red first pixel. The notification suppresses normal
+LED frames until `led_timeout` expires, then restores the latest normal frame.
 
 ### LED Ring
 

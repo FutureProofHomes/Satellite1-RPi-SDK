@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from satellite1_hw.audio_out import (
     LineOutDacConfig as SdkLineOutDacConfig,
@@ -111,6 +111,22 @@ class VolumeButtonsWorkflowConfig(BaseModel):
 
     enabled: bool = False
     step: float = Field(0.05, gt=0.0, le=1.0)
+    led_enabled: bool = False
+    led_color: tuple[int, int, int] = (0, 90, 255)
+    led_muted_color: tuple[int, int, int] = (255, 0, 0)
+    led_timeout: float = Field(1.5, gt=0.0)
+
+    @field_validator("led_color", "led_muted_color")
+    @classmethod
+    def validate_led_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+        if any(
+            not isinstance(channel, int)
+            or isinstance(channel, bool)
+            or not 0 <= channel <= 255
+            for channel in color
+        ):
+            raise ValueError("LED color channels must be integers from 0 to 255")
+        return color
 
 
 class LedRingConfig(BaseModel):

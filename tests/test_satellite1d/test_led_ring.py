@@ -97,3 +97,38 @@ def test_led_ring_service_coalesces_frames_and_rejects_unavailable_renderer():
         await service.close()
 
     asyncio.run(run())
+
+
+def test_led_notification_overrides_and_then_restores_normal_frames():
+    class Renderer:
+        available = True
+
+        def __init__(self) -> None:
+            self.frames: list[LedFrame] = []
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            self.frames.append(frame)
+
+    async def run() -> None:
+        renderer = Renderer()
+        service = LedRingService(renderer)
+        await service.start()
+        normal = LedFrame.from_pixels([(1, 2, 3)] * 24)
+        updated_normal = LedFrame.from_pixels([(4, 5, 6)] * 24)
+        notification = LedFrame.from_pixels([(255, 0, 0)] * 24)
+        await service.render_frame(normal)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+        await service.show_notification(notification, duration=0.01)
+        await service.render_frame(updated_normal)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert renderer.frames == [normal, notification]
+
+        await asyncio.sleep(0.02)
+        await asyncio.sleep(0)
+        assert renderer.frames == [normal, notification, updated_normal]
+        await service.close()
+
+    asyncio.run(run())

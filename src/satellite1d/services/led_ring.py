@@ -1,4 +1,4 @@
-"""Latest-frame-wins LED ring rendering service."""
+"""LED ring rendering with temporary notification overrides."""
 
 import asyncio
 import logging
@@ -13,13 +13,16 @@ log = logging.getLogger(__name__)
 
 
 class LedRingService:
-    """Accept complete frames and render only the most recent pending frame."""
+    """Render normal frames unless a temporary notification is active."""
 
     def __init__(self, renderer: LedFrameRenderer) -> None:
         self._renderer = renderer
+        self._normal_frame = LedFrame.clear()
+        self._notification_frame: LedFrame | None = None
         self._pending: LedFrame | None = None
         self._pending_ready = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
+        self._notification_task: asyncio.Task[None] | None = None
 
     # DaemonService
 
@@ -32,6 +35,16 @@ class LedRingService:
     async def close(self) -> None:
         task = self._task
         self._task = None
+        notification_task = self._notification_task
+        self._notification_task = None
+        if notification_task is not None:
+            notification_task.cancel()
+            try:
+                await notification_task
+            except asyncio.CancelledError:
+                pass
+        self._notification_frame = None
+        self._normal_frame = LedFrame.clear()
         self._pending = None
         self._pending_ready.clear()
         if task is not None:
@@ -48,11 +61,33 @@ class LedRingService:
     async def render_frame(self, frame: LedFrame) -> None:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")
-        self._pending = frame
-        self._pending_ready.set()
+        self._normal_frame = frame
+        if self._notification_frame is None:
+            self._queue(frame)
 
     async def clear(self) -> None:
         await self.render_frame(LedFrame.clear())
+
+    async def show_notification(self, frame: LedFrame, *, duration: float) -> None:
+        if not self.available:
+            raise LedRingUnavailableError("LED ring renderer is unavailable")
+        self._notification_frame = frame
+        self._queue(frame)
+        notification_task = self._notification_task
+        if notification_task is not None:
+            notification_task.cancel()
+        self._notification_task = asyncio.create_task(
+            self._expire_notification(duration), name="satellite1d-led-notification"
+        )
+
+    def _queue(self, frame: LedFrame) -> None:
+        self._pending = frame
+        self._pending_ready.set()
+
+    async def _expire_notification(self, duration: float) -> None:
+        await asyncio.sleep(duration)
+        self._notification_frame = None
+        self._queue(self._normal_frame)
 
     async def _render_pending_frames(self) -> None:
         while True:

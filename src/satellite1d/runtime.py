@@ -40,6 +40,7 @@ class DaemonRuntime:
         self.action: ActionButtonService | None = None
         self._xmos_availability_subscriber: asyncio.Queue[DaemonEvent | None] | None = None
         self._xmos_availability_task: asyncio.Task[None] | None = None
+        self.led_ring = LedRingService(self.xmos) if config.led_ring.enabled else None
         self.volume_buttons = (
             VolumeButtonWorkflow(
                 self.events,
@@ -47,11 +48,15 @@ class DaemonRuntime:
                 self.line_out,
                 self.speaker,
                 step=config.volume_buttons_workflow.step,
+                led_ring=self.led_ring,
+                led_enabled=config.volume_buttons_workflow.led_enabled,
+                led_color=config.volume_buttons_workflow.led_color,
+                led_muted_color=config.volume_buttons_workflow.led_muted_color,
+                led_timeout=config.volume_buttons_workflow.led_timeout,
             )
             if config.volume_buttons_workflow.enabled
             else None
         )
-        self.led_ring = LedRingService(self.xmos) if config.led_ring.enabled else None
         self.commands = DaemonCommands(
             self.power, self.line_out, self.speaker, self.xmos, self.led_ring
         )

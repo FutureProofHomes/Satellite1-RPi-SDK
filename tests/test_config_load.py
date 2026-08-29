@@ -185,8 +185,17 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
 
         [led_ring]
         enabled = true
+
+        [workflows.volume-buttons]
+        led_enabled = true
+        led_color = [1, 2, 3]
+        led_muted_color = [4, 5, 6]
+        led_timeout = 2.0
         """,
     )
     config = load_daemon_config(cfg_file)
     assert config.gpio.chip == "/dev/gpiochip4"
     assert config.led_ring.enabled
+    assert config.volume_buttons_workflow.led_color == (1, 2, 3)
+    assert config.volume_buttons_workflow.led_muted_color == (4, 5, 6)
+    assert config.volume_buttons_workflow.led_timeout == 2.0
