@@ -14,6 +14,7 @@ from satellite1d.contracts.events import (
     MicMuteChanged,
     XmosAvailabilityChanged,
 )
+from satellite1d.contracts.leds import LedFrame, LedRingUnavailableError
 from satellite1d.contracts.xmos import (
     XmosResetControl,
     XmosStatus,
@@ -155,6 +156,17 @@ class XmosService:
         if buttons is None:
             raise XmosUnavailableError("failed to read microphone mute state")
         return buttons.mic_mute
+
+    # LedFrameRenderer
+
+    async def render_led_frame(self, frame: LedFrame) -> None:
+        async with self._lock:
+            self._require_available()
+            rendered = await asyncio.to_thread(
+                self._driver.render_led_frame, frame.grb_payload()
+            )
+        if not rendered:
+            raise LedRingUnavailableError("XMOS rejected the LED frame")
 
     # Private communication and lifecycle helpers. The caller holds _lock.
 

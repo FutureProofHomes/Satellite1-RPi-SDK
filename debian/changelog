@@ -3,6 +3,7 @@ satellite1-rpi-sdk (0.2.0) trixie; urgency=medium
   * Run hardware through the satellite1d service runtime.
   * Migrate GPIO ownership to libgpiod.
   * Add typed daemon events and volume-button workflow support.
+  * Add optional XMOS-controlled LED ring rendering.
 
  -- Mischa Siekmann <mischa.siekmann@futureproofhomes.net>  Sat, 29 Aug 2026 00:00:00 +0000
 

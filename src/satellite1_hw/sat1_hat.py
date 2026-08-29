@@ -5,6 +5,7 @@ import logging
 
 from .components.xmos_device_cntrl import (
     DeviceCntrlConfig,
+    DeviceCntrlCMD,
     XMOSDeviceCntrl,
     DeviceCntrlStatusRegister as StatusRegister,
     DFU_SERVICER,
@@ -19,6 +20,7 @@ ACTION_BUTTON_BCM_PIN = 7
 XMOS_RESET_BCM_PIN = 5
 HAT_BUTTON_NAMES = ("volume_up", "action", "volume_down", "mic_mute")
 LATCHING_BUTTON_NAMES = frozenset({"mic_mute"})
+WRITE_LED_RING_RAW = DeviceCntrlCMD(200, 0, 72)
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,12 @@ class XMOS:
 
     def read_buttons(self) -> HatButtons | None:
         return decode_buttons(self.read_status())
+
+    def render_led_frame(self, payload: bytes) -> bool:
+        if len(payload) != WRITE_LED_RING_RAW.payload_len:
+            raise ValueError("XMOS LED frame payload must contain 72 bytes")
+        ok, _ = self._cntrl.send_cmd(WRITE_LED_RING_RAW, payload)
+        return ok
 
     def run_spi_echo_test(self) -> bool:
         success = True

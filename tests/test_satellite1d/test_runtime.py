@@ -6,6 +6,7 @@ from satellite1d.config import (
     ButtonsConfig,
     DaemonConfig,
     GpioConfig,
+    LedRingConfig,
     LineOutDacConfig,
     SpeakerDacConfig,
     VolumeButtonsWorkflowConfig,
@@ -34,12 +35,31 @@ def test_runtime_passes_the_configured_gpio_chip_to_reset_service(tmp_path):
         buttons=ButtonsConfig(),
         buttons_evdev=ButtonEvdevConfig(),
         volume_buttons_workflow=VolumeButtonsWorkflowConfig(),
+        led_ring=LedRingConfig(),
     )
 
     with patch("satellite1d.runtime.XmosResetService") as reset_service:
         DaemonRuntime(config, lock_path=tmp_path / "hardware.lock")
 
     reset_service.assert_called_once_with("/dev/gpiochip4")
+
+
+def test_runtime_creates_an_enabled_xmos_led_ring(tmp_path):
+    runtime = DaemonRuntime(
+        DaemonConfig(
+            line_out=LineOutDacConfig(),
+            speaker=SpeakerDacConfig(),
+            gpio=GpioConfig(),
+            buttons=ButtonsConfig(),
+            buttons_evdev=ButtonEvdevConfig(),
+            volume_buttons_workflow=VolumeButtonsWorkflowConfig(),
+            led_ring=LedRingConfig(enabled=True),
+        ),
+        lock_path=tmp_path / "hardware.lock",
+    )
+
+    assert runtime.led_ring is not None
+    assert runtime.commands.led_ring_enabled
 
 
 def test_runtime_stops_audio_when_xmos_is_unavailable_and_restarts_it_after_recovery(
@@ -64,6 +84,7 @@ def test_runtime_stops_audio_when_xmos_is_unavailable_and_restarts_it_after_reco
                 buttons=ButtonsConfig(action_source="xmos"),
                 buttons_evdev=ButtonEvdevConfig(),
                 volume_buttons_workflow=VolumeButtonsWorkflowConfig(enabled=True),
+                led_ring=LedRingConfig(),
             ),
             lock_path=tmp_path / "hardware.lock",
         )

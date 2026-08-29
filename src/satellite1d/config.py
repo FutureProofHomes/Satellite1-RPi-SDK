@@ -113,6 +113,16 @@ class VolumeButtonsWorkflowConfig(BaseModel):
     step: float = Field(0.05, gt=0.0, le=1.0)
 
 
+class LedRingConfig(BaseModel):
+    """Optional XMOS-controlled 24-pixel LED ring."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("led_ring", "led-ring")
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    backend: Literal["xmos"] = "xmos"
+
+
 @dataclass(frozen=True)
 class DaemonConfig:
     """Effective hardware configuration loaded once at daemon startup."""
@@ -123,6 +133,7 @@ class DaemonConfig:
     buttons: ButtonsConfig
     buttons_evdev: ButtonEvdevConfig
     volume_buttons_workflow: VolumeButtonsWorkflowConfig
+    led_ring: LedRingConfig
 
 
 def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
@@ -135,4 +146,5 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         volume_buttons_workflow=load_from_toml(
             VolumeButtonsWorkflowConfig, config_path=config_path
         ),
+        led_ring=load_from_toml(LedRingConfig, config_path=config_path),
     )

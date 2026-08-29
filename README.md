@@ -189,7 +189,7 @@ The `sat1` command provides unified control over Satellite1 hardware subsystems.
 ### Global options
 
 ```bash
-sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
+sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,led,pd} ...
 ```
 
 
@@ -206,6 +206,7 @@ sat1 [-h] [--socket SOCKET] [-v] {dac,xmos,pd} ...
 | ------------ | ------------------------------------------ |
 | `dac`      | Audio DAC controls (volume, mute, amp level) |
 | `xmos`     | XMOS firmware and interface management   |
+| `led`      | XMOS LED ring controls                   |
 | `pd`       | USB-C Power Delivery status              |
 
 ### DAC Commands
@@ -256,6 +257,17 @@ sat1 pd
 ```
 
 Shows the current USB-C Power Delivery contract: voltage, current, maximum power, and contract type (PD, USB, etc.).
+
+### LED Ring
+
+The optional XMOS backend drives the complete 24-pixel LED ring. Frames are
+accepted into a latest-frame-wins queue, so callers should send complete frames
+without waiting for physical transmission.
+
+```bash
+sat1 led set-color 0 32 128
+sat1 led clear
+```
 
 ## Configuration
 
@@ -321,6 +333,18 @@ enabled = true
 step = 0.05
 ```
 
+### LED Ring
+
+Enable the XMOS-controlled LED ring:
+
+```toml
+[led_ring]
+enabled = true
+backend = "xmos"
+```
+
+The native WS281x backend is not included in this release.
+
 ## Python API
 
 The public Python API connects to `satellite1d` through its local Unix socket.
@@ -334,6 +358,7 @@ async with AsyncSatellite1Client() as satellite:
     await satellite.dac.set_volume(0.5, dac="speaker")
     contract = await satellite.power.get_contract()
     firmware = await satellite.xmos.get_firmware()
+    await satellite.led.render_frame([(0, 32, 128)] * 24)
 ```
 
 The client provides `health()`, `satellite.power.get_contract()`, DAC controls,

@@ -12,6 +12,7 @@ from .events import EventHub
 from .contracts.events import DaemonEvent, XmosAvailabilityChanged
 from .services.audio import LineOutDacService, SpeakerDacService
 from .services.gpio import ActionButtonService, XmosResetService
+from .services.led_ring import LedRingService
 from .services.power import PowerDeliveryService
 from .services.xmos import XmosService
 from .workflows.volume_buttons import VolumeButtonWorkflow
@@ -50,7 +51,10 @@ class DaemonRuntime:
             if config.volume_buttons_workflow.enabled
             else None
         )
-        self.commands = DaemonCommands(self.power, self.line_out, self.speaker, self.xmos)
+        self.led_ring = LedRingService(self.xmos) if config.led_ring.enabled else None
+        self.commands = DaemonCommands(
+            self.power, self.line_out, self.speaker, self.xmos, self.led_ring
+        )
 
     async def start(self) -> None:
         self._acquire_lock()
@@ -62,6 +66,8 @@ class DaemonRuntime:
                 self._watch_xmos_availability(), name="satellite1d-xmos-availability"
             )
             await self.xmos.start()
+            if self.led_ring is not None:
+                await self.led_ring.start()
             if self.xmos.available:
                 await self._start_audio()
             if self._publish_gpio_action:
@@ -88,6 +94,8 @@ class DaemonRuntime:
             self.events.unsubscribe(self._xmos_availability_subscriber)
             self._xmos_availability_subscriber = None
         await self._stop_audio()
+        if self.led_ring is not None:
+            await self.led_ring.close()
         if self.action is not None:
             await self.action.close()
         await self.xmos.close()

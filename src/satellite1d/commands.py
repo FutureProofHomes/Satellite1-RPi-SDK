@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from .contracts.events import DaemonEvent, LineOutJackChanged, MicMuteChanged, VolumeChanged
+from .contracts.leds import LedFrame
 from .services.audio import LineOutDacService, SpeakerDacService
+from .services.led_ring import LedRingService
 from .services.power import PowerDeliveryService
 from .services.xmos import XmosService
 
@@ -16,20 +18,28 @@ class DaemonCommands:
         line_out: LineOutDacService,
         speaker: SpeakerDacService,
         xmos: XmosService,
+        led_ring: LedRingService | None = None,
     ) -> None:
         self._power = power
         self._line_out = line_out
         self._speaker = speaker
         self._xmos = xmos
+        self._led_ring = led_ring
 
     async def health(self) -> dict[str, Any]:
         xmos = self._xmos.available
         dac = self._line_out.available and self._speaker.available
+        led_ring = self._led_ring.available if self._led_ring is not None else False
         return {
-            "status": "healthy" if xmos and dac else "degraded",
+            "status": "healthy" if xmos and dac and (self._led_ring is None or led_ring) else "degraded",
             "dac": dac,
             "xmos": xmos,
+            "led_ring": led_ring,
         }
+
+    @property
+    def led_ring_enabled(self) -> bool:
+        return self._led_ring is not None
 
     async def current_events(self) -> list[DaemonEvent]:
         return [
@@ -66,6 +76,19 @@ class DaemonCommands:
             if not isinstance(path, str) or not isinstance(verify, bool):
                 raise ValueError("path must be a string and verify must be a boolean")
             return {"ok": await self._xmos.flash_xmos_firmware(Path(path), verify)}
+        if method == "led.render":
+            if self._led_ring is None:
+                raise KeyError(method)
+            pixels = params.get("pixels")
+            if not isinstance(pixels, list):
+                raise ValueError("pixels must be an array")
+            await self._led_ring.render_frame(LedFrame.from_pixels(pixels))
+            return {"ok": True}
+        if method == "led.clear":
+            if self._led_ring is None:
+                raise KeyError(method)
+            await self._led_ring.clear()
+            return {"ok": True}
         if method.startswith("dac."):
             return await self._dac_command(method, params)
         raise KeyError(method)

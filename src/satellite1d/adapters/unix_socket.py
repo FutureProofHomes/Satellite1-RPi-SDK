@@ -278,6 +278,8 @@ class UnixSocketAdapter:
             "xmos.reset",
             "xmos.flash_firmware",
         ]
+        if getattr(self.commands, "led_ring_enabled", False):
+            capabilities.extend(("led.render", "led.clear"))
         if self.events is not None:
             capabilities.append("events.subscribe")
         return capabilities
