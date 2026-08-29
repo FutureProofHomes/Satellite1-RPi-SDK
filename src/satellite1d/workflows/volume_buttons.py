@@ -5,7 +5,7 @@ import logging
 
 from satellite1d.contracts.audio import LineOutJackReader, VolumeController
 from satellite1d.contracts.events import ButtonPressed, DaemonEvent, EventSubscriber
-from satellite1d.contracts.leds import LED_RING_PIXEL_COUNT, LedFrame
+from satellite1d.led_patterns.volume import volume_frame
 from satellite1d.services.led_ring import LedRingService
 
 log = logging.getLogger(__name__)
@@ -82,21 +82,6 @@ class VolumeButtonWorkflow:
         volume = await controller.set_volume(min(1.0, max(0.0, current + change)))
         if self._led_ring is not None:
             await self._led_ring.show_notification(
-                self._volume_frame(volume), duration=self._led_timeout
+                volume_frame(volume, self._led_color, self._led_muted_color),
+                duration=self._led_timeout,
             )
-
-    def _volume_frame(self, volume: float) -> LedFrame:
-        if volume == 0.0:
-            return LedFrame.from_pixels(
-                [self._led_muted_color] + [(0, 0, 0)] * (LED_RING_PIXEL_COUNT - 1)
-            )
-        level = LED_RING_PIXEL_COUNT * volume
-        return LedFrame.from_pixels(
-            [
-                tuple(
-                    int(channel * min(1.0, max(0.0, level - index)))
-                    for channel in self._led_color
-                )
-                for index in range(LED_RING_PIXEL_COUNT)
-            ]
-        )

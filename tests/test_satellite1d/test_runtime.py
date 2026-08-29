@@ -6,6 +6,7 @@ from satellite1d.config import (
     ButtonsConfig,
     DaemonConfig,
     GpioConfig,
+    JackLedWorkflowConfig,
     LedRingConfig,
     LineOutDacConfig,
     SpeakerDacConfig,
@@ -35,6 +36,7 @@ def test_runtime_passes_the_configured_gpio_chip_to_reset_service(tmp_path):
         buttons=ButtonsConfig(),
         buttons_evdev=ButtonEvdevConfig(),
         volume_buttons_workflow=VolumeButtonsWorkflowConfig(),
+        jack_led_workflow=JackLedWorkflowConfig(),
         led_ring=LedRingConfig(),
     )
 
@@ -53,6 +55,7 @@ def test_runtime_creates_an_enabled_xmos_led_ring(tmp_path):
             buttons=ButtonsConfig(),
             buttons_evdev=ButtonEvdevConfig(),
             volume_buttons_workflow=VolumeButtonsWorkflowConfig(),
+            jack_led_workflow=JackLedWorkflowConfig(),
             led_ring=LedRingConfig(enabled=True),
         ),
         lock_path=tmp_path / "hardware.lock",
@@ -84,6 +87,7 @@ def test_runtime_stops_audio_when_xmos_is_unavailable_and_restarts_it_after_reco
                 buttons=ButtonsConfig(action_source="xmos"),
                 buttons_evdev=ButtonEvdevConfig(),
                 volume_buttons_workflow=VolumeButtonsWorkflowConfig(enabled=True),
+                jack_led_workflow=JackLedWorkflowConfig(),
                 led_ring=LedRingConfig(),
             ),
             lock_path=tmp_path / "hardware.lock",

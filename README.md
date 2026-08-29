@@ -341,6 +341,21 @@ When enabled, each volume-button press temporarily displays a 24-pixel volume
 bar. Zero volume displays a red first pixel. The notification suppresses normal
 LED frames until `led_timeout` expires, then restores the latest normal frame.
 
+### Jack Animation
+
+Enable the optional line-out jack animation:
+
+```toml
+[workflows.jack-led]
+enabled = true
+color = [0, 90, 255]
+frame_interval = 0.04
+```
+
+Plugging and unplugging animate two symmetric pixels across the ring over 13
+frames. Volume notifications have higher priority and interrupt a jack animation;
+the latest normal LED frame is restored when the active presentation ends.
+
 ### LED Ring
 
 Enable the XMOS-controlled LED ring:

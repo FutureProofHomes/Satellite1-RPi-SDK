@@ -132,3 +132,31 @@ def test_led_notification_overrides_and_then_restores_normal_frames():
         await service.close()
 
     asyncio.run(run())
+
+
+def test_higher_priority_notification_cancels_an_animation():
+    class Renderer:
+        available = True
+
+        def __init__(self) -> None:
+            self.frames: list[LedFrame] = []
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            self.frames.append(frame)
+
+    async def run() -> None:
+        renderer = Renderer()
+        service = LedRingService(renderer)
+        await service.start()
+        animation = [LedFrame.from_pixels([(1, 2, 3)] * 24)] * 3
+        notification = LedFrame.from_pixels([(255, 0, 0)] * 24)
+        assert await service.show_animation(animation, frame_interval=0.1)
+        await asyncio.sleep(0)
+        assert await service.show_notification(notification, duration=0.01)
+        await asyncio.sleep(0.02)
+        await asyncio.sleep(0)
+        assert notification in renderer.frames
+        assert service._presentation_task is None
+        await service.close()
+
+    asyncio.run(run())

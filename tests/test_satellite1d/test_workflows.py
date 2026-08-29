@@ -1,6 +1,7 @@
 import asyncio
 
-from satellite1d.contracts.events import ButtonPressed
+from satellite1d.contracts.events import ButtonPressed, LineOutJackChanged
+from satellite1d.workflows.jack_led import JackLedWorkflow
 from satellite1d.workflows.volume_buttons import VolumeButtonWorkflow
 
 
@@ -79,5 +80,35 @@ def test_volume_buttons_show_a_temporary_volume_notification():
         await workflow._handle_event(ButtonPressed("volume_down"))
         muted, _ = led_ring.notifications[-1]
         assert muted.pixels == ((255, 0, 0),) + ((0, 0, 0),) * 23
+
+    asyncio.run(run())
+
+
+def test_jack_led_workflow_plays_the_matching_animation():
+    class LedRing:
+        def __init__(self) -> None:
+            self.animations = []
+
+        async def show_animation(self, frames, *, frame_interval: float) -> None:
+            self.animations.append((frames, frame_interval))
+
+    async def run() -> None:
+        led_ring = LedRing()
+        workflow = JackLedWorkflow(
+            object(), led_ring, color=(1, 2, 3), frame_interval=0.04
+        )
+
+        workflow._subscriber = asyncio.Queue()
+        task = asyncio.create_task(workflow._run())
+        workflow._subscriber.put_nowait(LineOutJackChanged(plugged_in=True))
+        await asyncio.sleep(0)
+        frames, interval = led_ring.animations[-1]
+        assert frames[0].pixels[0] == (1, 2, 3)
+        assert interval == 0.04
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     asyncio.run(run())

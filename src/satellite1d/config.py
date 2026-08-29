@@ -129,6 +129,32 @@ class VolumeButtonsWorkflowConfig(BaseModel):
         return color
 
 
+class JackLedWorkflowConfig(BaseModel):
+    """Optional line-out jack-change LED animation policy."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = (
+        "workflows.jack-led",
+        "workflows.jack_led",
+    )
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    color: tuple[int, int, int] = (0, 90, 255)
+    frame_interval: float = Field(0.04, gt=0.0)
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+        if any(
+            not isinstance(channel, int)
+            or isinstance(channel, bool)
+            or not 0 <= channel <= 255
+            for channel in color
+        ):
+            raise ValueError("LED color channels must be integers from 0 to 255")
+        return color
+
+
 class LedRingConfig(BaseModel):
     """Optional XMOS-controlled 24-pixel LED ring."""
 
@@ -149,6 +175,7 @@ class DaemonConfig:
     buttons: ButtonsConfig
     buttons_evdev: ButtonEvdevConfig
     volume_buttons_workflow: VolumeButtonsWorkflowConfig
+    jack_led_workflow: JackLedWorkflowConfig
     led_ring: LedRingConfig
 
 
@@ -162,5 +189,6 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         volume_buttons_workflow=load_from_toml(
             VolumeButtonsWorkflowConfig, config_path=config_path
         ),
+        jack_led_workflow=load_from_toml(JackLedWorkflowConfig, config_path=config_path),
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
     )

@@ -1,7 +1,8 @@
-"""LED ring rendering with temporary notification overrides."""
+"""LED ring rendering with prioritized temporary presentations."""
 
 import asyncio
 import logging
+from collections.abc import Sequence
 
 from satellite1d.contracts.leds import (
     LedFrame,
@@ -13,16 +14,17 @@ log = logging.getLogger(__name__)
 
 
 class LedRingService:
-    """Render normal frames unless a temporary notification is active."""
+    """Render normal frames unless a higher-priority presentation is active."""
 
     def __init__(self, renderer: LedFrameRenderer) -> None:
         self._renderer = renderer
         self._normal_frame = LedFrame.clear()
-        self._notification_frame: LedFrame | None = None
         self._pending: LedFrame | None = None
         self._pending_ready = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
-        self._notification_task: asyncio.Task[None] | None = None
+        self._presentation_task: asyncio.Task[None] | None = None
+        self._presentation_id = 0
+        self._presentation_priority = 0
 
     # DaemonService
 
@@ -35,15 +37,16 @@ class LedRingService:
     async def close(self) -> None:
         task = self._task
         self._task = None
-        notification_task = self._notification_task
-        self._notification_task = None
-        if notification_task is not None:
-            notification_task.cancel()
+        presentation_task = self._presentation_task
+        self._presentation_task = None
+        if presentation_task is not None:
+            presentation_task.cancel()
             try:
-                await notification_task
+                await presentation_task
             except asyncio.CancelledError:
                 pass
-        self._notification_frame = None
+        self._presentation_id += 1
+        self._presentation_priority = 0
         self._normal_frame = LedFrame.clear()
         self._pending = None
         self._pending_ready.clear()
@@ -62,31 +65,81 @@ class LedRingService:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")
         self._normal_frame = frame
-        if self._notification_frame is None:
+        if self._presentation_task is None:
             self._queue(frame)
 
     async def clear(self) -> None:
         await self.render_frame(LedFrame.clear())
 
-    async def show_notification(self, frame: LedFrame, *, duration: float) -> None:
+    async def show_notification(
+        self, frame: LedFrame, *, duration: float, priority: int = 20
+    ) -> bool:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")
-        self._notification_frame = frame
+        if duration <= 0:
+            raise ValueError("notification duration must be positive")
+        if priority < self._presentation_priority:
+            return False
+        presentation_id = self._begin_presentation(priority)
         self._queue(frame)
-        notification_task = self._notification_task
-        if notification_task is not None:
-            notification_task.cancel()
-        self._notification_task = asyncio.create_task(
-            self._expire_notification(duration), name="satellite1d-led-notification"
+        self._presentation_task = asyncio.create_task(
+            self._hold_frame(duration, presentation_id),
+            name="satellite1d-led-notification",
         )
+        return True
+
+    async def show_animation(
+        self,
+        frames: Sequence[LedFrame],
+        *,
+        frame_interval: float,
+        priority: int = 10,
+    ) -> bool:
+        if not self.available:
+            raise LedRingUnavailableError("LED ring renderer is unavailable")
+        if not frames:
+            raise ValueError("animation must contain at least one frame")
+        if frame_interval <= 0:
+            raise ValueError("animation frame interval must be positive")
+        if priority < self._presentation_priority:
+            return False
+        presentation_id = self._begin_presentation(priority)
+        self._queue(frames[0])
+        self._presentation_task = asyncio.create_task(
+            self._play_frames(frames[1:], frame_interval, presentation_id),
+            name="satellite1d-led-animation",
+        )
+        return True
+
+    def _begin_presentation(self, priority: int) -> int:
+        self._presentation_id += 1
+        self._presentation_priority = priority
+        if self._presentation_task is not None:
+            self._presentation_task.cancel()
+        return self._presentation_id
 
     def _queue(self, frame: LedFrame) -> None:
         self._pending = frame
         self._pending_ready.set()
 
-    async def _expire_notification(self, duration: float) -> None:
+    async def _hold_frame(self, duration: float, presentation_id: int) -> None:
         await asyncio.sleep(duration)
-        self._notification_frame = None
+        self._finish_presentation(presentation_id)
+
+    async def _play_frames(
+        self, frames: Sequence[LedFrame], frame_interval: float, presentation_id: int
+    ) -> None:
+        for frame in frames:
+            await asyncio.sleep(frame_interval)
+            self._queue(frame)
+        await asyncio.sleep(frame_interval)
+        self._finish_presentation(presentation_id)
+
+    def _finish_presentation(self, presentation_id: int) -> None:
+        if presentation_id != self._presentation_id:
+            return
+        self._presentation_task = None
+        self._presentation_priority = 0
         self._queue(self._normal_frame)
 
     async def _render_pending_frames(self) -> None:
