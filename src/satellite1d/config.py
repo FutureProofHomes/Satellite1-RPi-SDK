@@ -62,6 +62,15 @@ class SpeakerDacConfig(DacConfig):
         )
 
 
+class GpioConfig(BaseModel):
+    """Linux GPIO controller used for direct Satellite1 HAT pins."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("gpio",)
+    model_config = ConfigDict(extra="forbid")
+
+    chip: str = "/dev/gpiochip0"
+
+
 class ButtonEvdevConfig(BaseModel):
     """Optional physical-button to Linux-key mappings."""
 
@@ -110,6 +119,7 @@ class DaemonConfig:
 
     line_out: LineOutDacConfig
     speaker: SpeakerDacConfig
+    gpio: GpioConfig
     buttons: ButtonsConfig
     buttons_evdev: ButtonEvdevConfig
     volume_buttons_workflow: VolumeButtonsWorkflowConfig
@@ -119,6 +129,7 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
     return DaemonConfig(
         line_out=load_from_toml(LineOutDacConfig, config_path=config_path),
         speaker=load_from_toml(SpeakerDacConfig, config_path=config_path),
+        gpio=load_from_toml(GpioConfig, config_path=config_path),
         buttons=load_from_toml(ButtonsConfig, config_path=config_path),
         buttons_evdev=load_from_toml(ButtonEvdevConfig, config_path=config_path),
         volume_buttons_workflow=load_from_toml(

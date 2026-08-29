@@ -275,6 +275,17 @@ Override with:
 satellite1d --config /path/to/custom.conf
 ```
 
+### GPIO Controller
+
+The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default.
+If the Raspberry Pi header GPIO controller has a different path on the target
+kernel, configure it explicitly:
+
+```toml
+[gpio]
+chip = "/dev/gpiochip4"
+```
+
 ### Buttons
 
 HAT buttons can optionally be exposed as a standard Linux input device. This

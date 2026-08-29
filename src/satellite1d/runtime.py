@@ -24,10 +24,11 @@ class DaemonRuntime:
         self.events = EventHub()
         self._lock_path = lock_path
         self._lock_file = None
+        self._gpio_chip = config.gpio.chip
         self.power = PowerDeliveryService()
         self.line_out = LineOutDacService(config.line_out.to_sdk(), self.events)
         self.speaker = SpeakerDacService(config.speaker.to_sdk(), self.power, self.events)
-        self.reset = XmosResetService()
+        self.reset = XmosResetService(self._gpio_chip)
         self.xmos = XmosService(
             XMOS(),
             self.reset,
@@ -65,7 +66,7 @@ class DaemonRuntime:
                 await self._start_audio()
             if self._publish_gpio_action:
                 self.action = ActionButtonService(
-                    ActionButton(), self.events, publish_action=True
+                    ActionButton(self._gpio_chip), self.events, publish_action=True
                 )
                 await self.action.start()
             if self.volume_buttons is not None and self.xmos.available:

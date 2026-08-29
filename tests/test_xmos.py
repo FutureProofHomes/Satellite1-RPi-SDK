@@ -5,13 +5,33 @@ import pytest
 
 import satellite1_hw.components.flashrom_wrapper as fw_mod
 from satellite1_hw.components.flashrom_wrapper import flash_xmos_firmware
-from satellite1_hw.sat1_hat import XMOS
+from satellite1_hw.sat1_hat import ActionButton, XMOS, XmosResetPin
 
 
 def test_fw_from_bytes_parses():
     x = XMOS()
     assert x._fw_from_bytes(bytes([1,2,3,0,0])) == "v1.2.3"
     assert x._fw_from_bytes(bytes([1,2,3,1,5])) == "v1.2.3-alpha.5"
+
+
+def test_direct_gpio_pins_accept_a_configured_chip(monkeypatch):
+    input_calls = []
+    output_calls = []
+
+    monkeypatch.setattr(
+        "satellite1_hw.sat1_hat.GpioInput",
+        lambda *args, **kwargs: input_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        "satellite1_hw.sat1_hat.GpioOutput",
+        lambda *args, **kwargs: output_calls.append((args, kwargs)),
+    )
+
+    ActionButton("/dev/gpiochip4")
+    XmosResetPin("/dev/gpiochip4")
+
+    assert input_calls == [((7,), {"chip": "/dev/gpiochip4", "pull_up": True})]
+    assert output_calls == [((5,), {"chip": "/dev/gpiochip4", "initial": False})]
 
 
 def test_flash_xmos_firmware_does_not_own_reset_on_failure(tmp_path, monkeypatch):

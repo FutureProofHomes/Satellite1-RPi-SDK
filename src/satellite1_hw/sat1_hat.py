@@ -3,7 +3,6 @@ import random
 
 import logging
 
-from .components.pcm5122 import PCM5122, PCM5122Config, PCM5122GPIOPin
 from .components.xmos_device_cntrl import (
     DeviceCntrlConfig,
     XMOSDeviceCntrl,
@@ -134,8 +133,8 @@ class XMOS:
 class ActionButton:
     """Direct, active-low action button input on the Raspberry Pi header."""
 
-    def __init__(self) -> None:
-        self._input = GpioInput(ACTION_BUTTON_BCM_PIN, pull_up=True)
+    def __init__(self, chip: str = "/dev/gpiochip0") -> None:
+        self._input = GpioInput(ACTION_BUTTON_BCM_PIN, chip=chip, pull_up=True)
 
     @property
     def fileno(self) -> int:
@@ -154,8 +153,8 @@ class ActionButton:
 class XmosResetPin:
     """Direct XMOS reset output; high holds XMOS in reset."""
 
-    def __init__(self) -> None:
-        self._output = GpioOutput(XMOS_RESET_BCM_PIN, initial=False)
+    def __init__(self, chip: str = "/dev/gpiochip0") -> None:
+        self._output = GpioOutput(XMOS_RESET_BCM_PIN, chip=chip, initial=False)
 
     def hold(self) -> None:
         self._output.set_value(True)

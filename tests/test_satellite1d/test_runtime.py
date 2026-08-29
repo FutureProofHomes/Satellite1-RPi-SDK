@@ -1,9 +1,11 @@
 import asyncio
+from unittest.mock import patch
 
 from satellite1d.config import (
     ButtonEvdevConfig,
     ButtonsConfig,
     DaemonConfig,
+    GpioConfig,
     LineOutDacConfig,
     SpeakerDacConfig,
     VolumeButtonsWorkflowConfig,
@@ -24,6 +26,22 @@ class _Service:
         self.closes += 1
 
 
+def test_runtime_passes_the_configured_gpio_chip_to_reset_service(tmp_path):
+    config = DaemonConfig(
+        line_out=LineOutDacConfig(),
+        speaker=SpeakerDacConfig(),
+        gpio=GpioConfig(chip="/dev/gpiochip4"),
+        buttons=ButtonsConfig(),
+        buttons_evdev=ButtonEvdevConfig(),
+        volume_buttons_workflow=VolumeButtonsWorkflowConfig(),
+    )
+
+    with patch("satellite1d.runtime.XmosResetService") as reset_service:
+        DaemonRuntime(config, lock_path=tmp_path / "hardware.lock")
+
+    reset_service.assert_called_once_with("/dev/gpiochip4")
+
+
 def test_runtime_stops_audio_when_xmos_is_unavailable_and_restarts_it_after_recovery(
     tmp_path,
 ):
@@ -42,6 +60,7 @@ def test_runtime_stops_audio_when_xmos_is_unavailable_and_restarts_it_after_reco
             DaemonConfig(
                 line_out=LineOutDacConfig(),
                 speaker=SpeakerDacConfig(),
+                gpio=GpioConfig(),
                 buttons=ButtonsConfig(action_source="xmos"),
                 buttons_evdev=ButtonEvdevConfig(),
                 volume_buttons_workflow=VolumeButtonsWorkflowConfig(enabled=True),

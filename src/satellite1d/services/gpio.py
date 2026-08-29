@@ -69,7 +69,8 @@ class ActionButtonService:
 class XmosResetService:
     """Own the XMOS reset output and expose normal and flashing transitions."""
 
-    def __init__(self) -> None:
+    def __init__(self, chip: str = "/dev/gpiochip0") -> None:
+        self._chip = chip
         self._reset_pin: XmosResetPin | None = None
         self._lock = asyncio.Lock()
 
@@ -77,7 +78,7 @@ class XmosResetService:
 
     async def start(self) -> None:
         if self._reset_pin is None:
-            self._reset_pin = XmosResetPin()
+            self._reset_pin = XmosResetPin(self._chip)
 
     async def close(self) -> None:
         async with self._lock:

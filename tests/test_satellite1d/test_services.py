@@ -197,14 +197,16 @@ def test_xmos_reset_service_controls_reset_output():
 
     async def run() -> None:
         output = ResetOutput()
-        with patch("satellite1d.services.gpio.XmosResetPin", return_value=output):
-            service = XmosResetService()
+        with patch("satellite1d.services.gpio.XmosResetPin", return_value=output) as pin:
+            service = XmosResetService("/dev/gpiochip4")
             await service.start()
 
             assert await service.reset_xmos()
             assert await service.set_flash_mode()
             assert await service.unset_flash_mode()
             await service.close()
+
+        pin.assert_called_once_with("/dev/gpiochip4")
 
         assert output.operations == ["hold", "release", "hold", "release", "close"]
 
