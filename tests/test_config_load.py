@@ -275,5 +275,23 @@ def test_logging_level_defaults_and_can_be_configured(tmp_path: Path):
         level = "TRACE"
         """,
     )
+
+    with pytest.raises(ValueError):
+        load_daemon_config(config_path)
+
+
+@pytest.mark.parametrize("section", ["line_out", "speaker"])
+def test_dac_configuration_rejects_removed_enabled_setting(
+    tmp_path: Path, section: str
+):
+    config_path = tmp_path / "conf.toml"
+    write_toml(
+        config_path,
+        f"""
+        [{section}]
+        enabled = false
+        """,
+    )
+
     with pytest.raises(ValueError):
         load_daemon_config(config_path)

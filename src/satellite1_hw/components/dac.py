@@ -27,11 +27,6 @@ class DAC(Protocol):
         ...
 
     @property
-    def enabled(self) -> bool:
-        """Return whether the DAC is enabled."""
-        ...
-
-    @property
     def volume(self) -> float:
         """Return the normalized output volume."""
         ...

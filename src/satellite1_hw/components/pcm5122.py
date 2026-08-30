@@ -33,7 +33,6 @@ class PCM5122GPIOPin:
 class PCM5122Config:
     """Startup configuration for a PCM5122 DAC instance."""
 
-    enabled: bool = True
     i2c_bus: int = 1
     i2c_addr: int = 0x4D
     gpio: list[PCM5122GPIOPin] = field(default_factory=list)
@@ -90,11 +89,6 @@ class PCM5122:
         self._muted = cfg.muted
         self._volume = cfg.volume
         self._gpio_cfg: dict[int, tuple[str, bool]] = {}  # pin -> (mode, inverted)
-
-    @property
-    def enabled(self) -> bool:
-        """Return whether the DAC is enabled by configuration."""
-        return self.cfg.enabled
 
     # ---- high-level API ----
     def setup(self) -> None:

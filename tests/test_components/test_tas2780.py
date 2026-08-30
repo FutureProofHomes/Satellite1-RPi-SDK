@@ -77,7 +77,6 @@ def test_setup_preserves_muted_volume(monkeypatch):
     config = tas_mod.TAS2780Config(
         i2c_bus=1,
         i2c_addr=0x38,
-        enabled=False,
         muted=True,
     )
     dac = tas_mod.TAS2780(config)
@@ -88,10 +87,8 @@ def test_setup_preserves_muted_volume(monkeypatch):
 
     dac.setup()
 
-    assert FakeI2c.writes[-2:] == [
-        (tas_mod.REG.PAGE_SELECT, 0x00),
-        (tas_mod.REG.DVC, 0xC9),
-    ]
+    assert (tas_mod.REG.DVC, 0xC9) in FakeI2c.writes
+    assert any(register == tas_mod.REG.MODE_CTRL for register, _ in FakeI2c.writes)
 
 
 @pytest.mark.parametrize(
@@ -112,7 +109,9 @@ def test_set_channel_uses_expected_tdm_route(monkeypatch, channel, route):
 
     assert FakeI2c.writes[-1] == (
         tas_mod.REG.TDM_CFG2,
-        route | tas_mod.REG.TDM_CFG2_RX_WLEN__32BIT | tas_mod.REG.TDM_CFG2_RX_SLEN__32BIT,
+        route
+        | tas_mod.REG.TDM_CFG2_RX_WLEN__32BIT
+        | tas_mod.REG.TDM_CFG2_RX_SLEN__32BIT,
     )
 
 

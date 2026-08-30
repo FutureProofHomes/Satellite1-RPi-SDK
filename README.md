@@ -199,6 +199,9 @@ unavailable or invalid.
 `startup_muted` is applied after the selected volume. It controls whether the
 output starts muted; mute state itself is not restored.
 
+Both DACs are initialized when XMOS becomes available. Line-out is selected
+when its jack is present; otherwise audio uses the speaker.
+
 ```toml
 [line_out]
 startup_volume = 0.5

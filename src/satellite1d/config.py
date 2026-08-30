@@ -21,7 +21,6 @@ from .contracts.leds import LedColor
 class DacConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    enabled: bool = True
     startup_volume: float = Field(
         0.5,
         ge=0.0,
@@ -42,7 +41,6 @@ class LineOutDacConfig(DacConfig):
 
     def to_sdk(self) -> SdkLineOutDacConfig:
         return SdkLineOutDacConfig(
-            enabled=self.enabled,
             startup_volume=self.startup_volume,
             startup_muted=self.startup_muted,
         )
@@ -56,7 +54,6 @@ class SpeakerDacConfig(DacConfig):
 
     def to_sdk(self) -> SdkSpeakerDacConfig:
         return SdkSpeakerDacConfig(
-            enabled=self.enabled,
             startup_volume=self.startup_volume,
             startup_muted=self.startup_muted,
             channel=self.channel,
