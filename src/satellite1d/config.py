@@ -1,6 +1,6 @@
 """Machine configuration owned by the Satellite1 daemon."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Literal
 
@@ -14,6 +14,7 @@ from satellite1_hw.audio_out import (
 )
 
 from .config_load import load_from_toml
+from .contracts.leds import LedColor
 
 
 class DacConfig(BaseModel):
@@ -114,13 +115,17 @@ class VolumeButtonsWorkflowConfig(BaseModel):
     enabled: bool = False
     step: float = Field(0.05, gt=0.0, le=1.0)
     led_enabled: bool = False
-    led_color: tuple[int, int, int] = (0, 90, 255)
+    led_color: tuple[int, int, int] | None = None
     led_muted_color: tuple[int, int, int] = (255, 0, 0)
     led_timeout: float = Field(1.5, gt=0.0)
 
     @field_validator("led_color", "led_muted_color")
     @classmethod
-    def validate_led_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+    def validate_led_color(
+        cls, color: tuple[int, int, int] | None
+    ) -> tuple[int, int, int] | None:
+        if color is None:
+            return color
         if any(
             not isinstance(channel, int)
             or isinstance(channel, bool)
@@ -141,12 +146,16 @@ class JackLedWorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
-    color: tuple[int, int, int] = (0, 90, 255)
+    color: tuple[int, int, int] | None = None
     frame_interval: float = Field(0.04, gt=0.0)
 
     @field_validator("color")
     @classmethod
-    def validate_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+    def validate_color(
+        cls, color: tuple[int, int, int] | None
+    ) -> tuple[int, int, int] | None:
+        if color is None:
+            return color
         if any(
             not isinstance(channel, int)
             or isinstance(channel, bool)
@@ -191,6 +200,35 @@ class LedRingConfig(BaseModel):
 
     enabled: bool = False
     backend: Literal["xmos"] = "xmos"
+    system_color: tuple[int, int, int] = (0, 90, 255)
+
+    @field_validator("system_color")
+    @classmethod
+    def validate_system_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+        LedColor(color)
+        return color
+
+    def to_system_color(self) -> LedColor:
+        return LedColor(self.system_color)
+
+
+class LvaConfig(BaseModel):
+    """Optional Linux Voice Assistant peripheral connection."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("lva",)
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    url: str = "ws://127.0.0.1:6055"
+    reconnect_delay: float = Field(3.0, gt=0.0)
+    timer_max_ring_seconds: float = Field(900.0, gt=0.0)
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, url: str) -> str:
+        if not url.startswith(("ws://", "wss://")):
+            raise ValueError("url must use ws:// or wss://")
+        return url
 
 
 @dataclass(frozen=True)
@@ -206,6 +244,12 @@ class DaemonConfig:
     jack_led_workflow: JackLedWorkflowConfig
     mute_led_workflow: MuteLedWorkflowConfig
     led_ring: LedRingConfig
+    lva: LvaConfig = field(
+        default_factory=lambda: LvaConfig(
+            reconnect_delay=3.0,
+            timer_max_ring_seconds=900.0,
+        )
+    )
 
 
 def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
@@ -225,4 +269,5 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
             MuteLedWorkflowConfig, config_path=config_path
         ),
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
+        lva=load_from_toml(LvaConfig, config_path=config_path),
     )

@@ -26,9 +26,14 @@ from ..contracts.events import (
     DaemonEvent,
     EventSubscriber,
     LineOutJackChanged,
+    LvaConnectionChanged,
+    LvaMicSoftwareMuteChanged,
+    LvaTimerChanged,
     MicMuteChanged,
-    SpeakerMuteChanged,
+    OutputMuteChanged,
+    VoicePipelineStateChanged,
     VolumeChanged,
+    XmosAvailabilityChanged,
 )
 
 DEFAULT_SOCKET_PATH = Path("/run/satellite1/satellite1d.sock")
@@ -256,7 +261,12 @@ class UnixSocketAdapter:
                 request_id, "method_not_found", f"unsupported method: {method}"
             )
         try:
-            return success(request_id, await self.commands.dispatch(method, params))
+            result = (
+                await self.commands.dispatch(method, params, audio_source="unix_socket")
+                if method in {"dac.set_volume", "dac.set_mute"}
+                else await self.commands.dispatch(method, params)
+            )
+            return success(request_id, result)
         except KeyError:
             return failure(
                 request_id, "method_not_found", f"unsupported method: {method}"
@@ -287,7 +297,14 @@ class UnixSocketAdapter:
             "xmos.flash_firmware",
         ]
         if getattr(self.commands, "led_ring_enabled", False):
-            capabilities.extend(("led.render", "led.clear"))
+            capabilities.extend(
+                (
+                    "led.render",
+                    "led.clear",
+                    "led.get_system_color",
+                    "led.set_system_color",
+                )
+            )
         if self.events is not None:
             capabilities.append("events.subscribe")
         return capabilities
@@ -298,16 +315,64 @@ def _event_payload(event: DaemonEvent) -> dict[str, Any]:
         return {"event": "buttons.pressed", "data": {"name": event.name}}
     if isinstance(event, MicMuteChanged):
         return {"event": "mics.muted_changed", "data": {"muted": event.muted}}
-    if isinstance(event, SpeakerMuteChanged):
-        return {"event": "audio.speaker_muted_changed", "data": {"muted": event.muted}}
+    if isinstance(event, LvaMicSoftwareMuteChanged):
+        return {
+            "event": "lva.mics.software_muted_changed",
+            "data": {"muted": event.muted},
+        }
+    if isinstance(event, VoicePipelineStateChanged):
+        return {
+            "event": "lva.voice_pipeline.state_changed",
+            "data": {"state": event.state},
+        }
+    if isinstance(event, LvaTimerChanged):
+        return {
+            "event": "lva.timer.changed",
+            "data": {
+                "id": event.timer_id,
+                "name": event.name,
+                "total_seconds": event.total_seconds,
+                "seconds_left": event.seconds_left,
+                "ringing": event.ringing,
+            },
+        }
+    if isinstance(event, LvaConnectionChanged):
+        return {
+            "event": "lva.connection_changed",
+            "data": {"connected": event.connected},
+        }
+    if isinstance(event, OutputMuteChanged):
+        if event.output == "speaker":
+            return {
+                "event": "audio.speaker_muted_changed",
+                "data": {"muted": event.muted},
+            }
+        return {
+            "event": "audio.output_muted_changed",
+            "data": {
+                "output": event.output,
+                "muted": event.muted,
+                "volume": event.volume,
+                "source": event.source,
+            },
+        }
     if isinstance(event, VolumeChanged):
         return {
             "event": "audio.volume_changed",
-            "data": {"output": event.output, "volume": event.volume},
+            "data": {
+                "output": event.output,
+                "volume": event.volume,
+                "source": event.source,
+            },
         }
     if isinstance(event, LineOutJackChanged):
         return {
             "event": "audio.line_out_jack_changed",
             "data": {"plugged_in": event.plugged_in},
+        }
+    if isinstance(event, XmosAvailabilityChanged):
+        return {
+            "event": "xmos.availability_changed",
+            "data": {"available": event.available},
         }
     raise TypeError(f"unsupported event: {event!r}")

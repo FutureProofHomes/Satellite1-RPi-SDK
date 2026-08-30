@@ -1,9 +1,11 @@
 """Volume feedback LED frame generator."""
 
-from satellite1d.contracts.leds import LED_RING_PIXEL_COUNT, LedColor, LedFrame
+from satellite1d.contracts.leds import LED_RING_PIXEL_COUNT, LedColorRGB, LedFrame
 
 
-def volume_frame(volume: float, color: LedColor, muted_color: LedColor) -> LedFrame:
+def volume_frame(
+    volume: float, color: LedColorRGB, muted_color: LedColorRGB
+) -> LedFrame:
     """Render a proportional volume bar or a red muted indicator."""
     if volume == 0.0:
         return LedFrame.from_pixels(

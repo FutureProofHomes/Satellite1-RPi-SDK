@@ -3,15 +3,15 @@
 from pathlib import Path
 from typing import Any
 
-from .contracts.audio import VolumeController
+from .contracts.audio import AudioChangeSource, VolumeController
 from .contracts.events import (
     DaemonEvent,
     LineOutJackChanged,
     MicMuteChanged,
-    SpeakerMuteChanged,
+    OutputMuteChanged,
     VolumeChanged,
 )
-from .contracts.leds import LedFrame
+from .contracts.leds import LedColor, LedFrame
 from .services.audio import LineOutDacService, SpeakerDacService
 from .services.environment import EnvironmentService
 from .services.led_ring import LedRingService
@@ -56,13 +56,23 @@ class DaemonCommands:
     async def current_events(self) -> list[DaemonEvent]:
         return [
             MicMuteChanged(await self._xmos.get_microphone_mute()),
-            SpeakerMuteChanged(await self._speaker.is_muted()),
+            OutputMuteChanged(
+                "speaker",
+                await self._speaker.is_muted(),
+                await self._speaker.get_volume(),
+            ),
             VolumeChanged("line-out", await self._line_out.get_volume()),
             VolumeChanged("speaker", await self._speaker.get_volume()),
             LineOutJackChanged(await self._line_out.is_jack_plugged_in()),
         ]
 
-    async def dispatch(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def dispatch(
+        self,
+        method: str,
+        params: dict[str, Any],
+        *,
+        audio_source: AudioChangeSource = "local",
+    ) -> dict[str, Any]:
         if method == "power.get_contract":
             contract = await self._power.get_power_contract()
             return (
@@ -109,18 +119,35 @@ class DaemonCommands:
             pixels = params.get("pixels")
             if not isinstance(pixels, list):
                 raise ValueError("pixels must be an array")
-            await self._led_ring.render_frame(LedFrame.from_pixels(pixels))
+            await self._led_ring.set_background_frame(LedFrame.from_pixels(pixels))
             return {"ok": True}
         if method == "led.clear":
             if self._led_ring is None:
                 raise KeyError(method)
             await self._led_ring.clear()
             return {"ok": True}
+        if method == "led.get_system_color":
+            if self._led_ring is None:
+                raise KeyError(method)
+            return {"color": self._led_ring.system_color.raw_rgb}
+        if method == "led.set_system_color":
+            if self._led_ring is None:
+                raise KeyError(method)
+            color = params.get("color")
+            if not isinstance(color, list):
+                raise ValueError("color must be an array")
+            await self._led_ring.set_system_color(LedColor.from_channels(color))
+            return {"color": self._led_ring.system_color.raw_rgb}
         if method.startswith("dac."):
-            return await self._dac_command(method, params)
+            return await self._dac_command(method, params, audio_source)
         raise KeyError(method)
 
-    async def _dac_command(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def _dac_command(
+        self,
+        method: str,
+        params: dict[str, Any],
+        audio_source: AudioChangeSource,
+    ) -> dict[str, Any]:
         output = params.get("dac", "auto")
         if output not in {"auto", "line-out", "speaker"}:
             raise ValueError("dac must be 'auto', 'line-out', or 'speaker'")
@@ -131,12 +158,16 @@ class DaemonCommands:
             volume = params.get("volume")
             if not isinstance(volume, (int, float)) or isinstance(volume, bool):
                 raise ValueError("volume must be a number")
-            return {"volume": await dac.set_volume(float(volume))}
+            return {"volume": await dac.set_volume(float(volume), source=audio_source)}
         if method == "dac.set_mute":
             muted = params.get("muted")
             if not isinstance(muted, bool):
                 raise ValueError("muted must be a boolean")
-            await (dac.mute() if muted else dac.unmute())
+            await (
+                dac.mute(source=audio_source)
+                if muted
+                else dac.unmute(source=audio_source)
+            )
             return {"muted": muted}
         if method == "dac.get_plugged_in":
             return {"plugged_in": await self._line_out.is_jack_plugged_in()}

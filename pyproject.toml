@@ -18,8 +18,8 @@ dependencies = [
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
-daemon = ["evdev>=1.6", "gpiod>=2.2", "pydantic>=2.13,<3"]
-dev = ["pydantic>=2.13,<3", "pytest", "mypy", "pre-commit", "ruff"]
+daemon = ["evdev>=1.6", "gpiod>=2.2", "pydantic>=2.13,<3", "websockets>=15"]
+dev = ["pydantic>=2.13,<3", "websockets>=15", "pytest", "mypy", "pre-commit", "ruff"]
 
 
 [tool.setuptools]
