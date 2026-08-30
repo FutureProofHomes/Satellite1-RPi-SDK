@@ -10,16 +10,24 @@ from typing import Any, Literal, cast
 
 from ._protocol import PROTOCOL_VERSION
 from .models import (
+    AudioChangeSource,
     ButtonPressed,
     DaemonInfo,
     EnvironmentReadings,
     HardwareHealth,
     LineOutJackChanged,
+    LvaConnectionChanged,
+    LvaMicSoftwareMuteChanged,
+    LvaTimerChanged,
     MicMuteChanged,
+    OutputMuteChanged,
     PowerContract,
     Satellite1Event,
     SpeakerMuteChanged,
+    VoicePipelineState,
+    VoicePipelineStateChanged,
     VolumeChanged,
+    XmosAvailabilityChanged,
     XmosStatus,
 )
 
@@ -366,6 +374,15 @@ class _LedClient:
     async def clear(self) -> None:
         _ok(await self._client._request("led.clear"))
 
+    async def get_system_color(self) -> tuple[int, int, int]:
+        return _color(await self._client._request("led.get_system_color"), "color")
+
+    async def set_system_color(self, color: Sequence[int]) -> tuple[int, int, int]:
+        return _color(
+            await self._client._request("led.set_system_color", {"color": list(color)}),
+            "color",
+        )
+
 
 def _event(value: Any) -> Satellite1Event:
     if not isinstance(value, dict):
@@ -382,16 +399,46 @@ def _event(value: Any) -> Satellite1Event:
             )
     if name == "mics.muted_changed":
         return MicMuteChanged(_bool(data, "muted"))
+    if name == "lva.mics.software_muted_changed":
+        return LvaMicSoftwareMuteChanged(_bool(data, "muted"))
+    if name == "lva.connection_changed":
+        return LvaConnectionChanged(_bool(data, "connected"))
+    if name == "lva.timer.changed":
+        return LvaTimerChanged(
+            _string(data, "id"),
+            _string(data, "name"),
+            _integer(data, "total_seconds"),
+            _integer(data, "seconds_left"),
+            _bool(data, "ringing"),
+        )
+    if name == "lva.voice_pipeline.state_changed":
+        state = _string(data, "state")
+        if state in {
+            "idle",
+            "wake_word_detected",
+            "listening",
+            "thinking",
+            "tts_speaking",
+            "error",
+        }:
+            return VoicePipelineStateChanged(cast(VoicePipelineState, state))
+    if name == "audio.output_muted_changed":
+        return OutputMuteChanged(
+            _audio_output(data),
+            _bool(data, "muted"),
+            _number(data, "volume"),
+            _audio_change_source(data),
+        )
     if name == "audio.speaker_muted_changed":
         return SpeakerMuteChanged(_bool(data, "muted"))
     if name == "audio.volume_changed":
-        output = _string(data, "output")
-        if output in {"line-out", "speaker"}:
-            return VolumeChanged(
-                cast(Literal["line-out", "speaker"], output), _number(data, "volume")
-            )
+        return VolumeChanged(
+            _audio_output(data), _number(data, "volume"), _audio_change_source(data)
+        )
     if name == "audio.line_out_jack_changed":
         return LineOutJackChanged(_bool(data, "plugged_in"))
+    if name == "xmos.availability_changed":
+        return XmosAvailabilityChanged(_bool(data, "available"))
     raise Satellite1ProtocolError("satellite1d returned an unsupported event")
 
 
@@ -406,6 +453,20 @@ def _optional_bool(result: dict[str, Any], name: str, *, default: bool) -> bool:
     if name not in result:
         return default
     return _bool(result, name)
+
+
+def _audio_output(result: dict[str, Any]) -> Literal["line-out", "speaker"]:
+    output = _string(result, "output")
+    if output in {"line-out", "speaker"}:
+        return cast(Literal["line-out", "speaker"], output)
+    raise Satellite1ProtocolError("satellite1d returned invalid output")
+
+
+def _audio_change_source(result: dict[str, Any]) -> AudioChangeSource:
+    source = _string(result, "source")
+    if source in {"local", "lva", "unix_socket"}:
+        return cast(AudioChangeSource, source)
+    raise Satellite1ProtocolError("satellite1d returned invalid source")
 
 
 def _integer(result: dict[str, Any], name: str) -> int:
@@ -447,6 +508,20 @@ def _string(result: dict[str, Any], name: str) -> str:
     return value
 
 
+def _color(result: dict[str, Any], name: str) -> tuple[int, int, int]:
+    value = result.get(name)
+    if (
+        not isinstance(value, list)
+        or len(value) != 3
+        or any(
+            not isinstance(channel, int) or isinstance(channel, bool)
+            for channel in value
+        )
+    ):
+        raise Satellite1ProtocolError(f"satellite1d returned invalid {name}")
+    return cast(tuple[int, int, int], tuple(value))
+
+
 def _ok(result: dict[str, Any]) -> None:
     if not _bool(result, "ok"):
         raise Satellite1ProtocolError("satellite1d returned an unsuccessful response")
@@ -454,17 +529,19 @@ def _ok(result: dict[str, Any]) -> None:
 
 def _normalize_led_frame(
     pixels: Sequence[Sequence[int]],
-) -> tuple[tuple[int, int, int], ...]:
+) -> tuple[tuple[int, ...], ...]:
     if len(pixels) != LED_RING_PIXEL_COUNT:
         raise ValueError(f"expected {LED_RING_PIXEL_COUNT} pixels, got {len(pixels)}")
-    frame: list[tuple[int, int, int]] = []
+    frame: list[tuple[int, ...]] = []
     for index, color in enumerate(pixels):
         if (
             not isinstance(color, Sequence)
             or isinstance(color, (str, bytes))
-            or len(color) != 3
+            or len(color) not in {3, 4}
         ):
-            raise ValueError(f"pixel {index} must contain exactly three RGB channels")
+            raise ValueError(
+                f"pixel {index} must contain RGB or RGB plus brightness channels"
+            )
         if any(
             not isinstance(channel, int)
             or isinstance(channel, bool)
@@ -474,5 +551,5 @@ def _normalize_led_frame(
             raise ValueError(
                 f"pixel {index} RGB channels must be integers from 0 to 255"
             )
-        frame.append((color[0], color[1], color[2]))
+        frame.append(tuple(color))
     return tuple(frame)

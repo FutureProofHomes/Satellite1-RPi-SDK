@@ -7,6 +7,7 @@ from typing import TextIO
 
 from satellite1_hw.sat1_hat import XMOS, ActionButton
 
+from .adapters.lva import LvaAdapter
 from .commands import DaemonCommands
 from .config import DaemonConfig
 from .contracts.events import DaemonEvent, XmosAvailabilityChanged
@@ -19,7 +20,10 @@ from .services.power import PowerDeliveryService
 from .services.xmos import XmosService
 from .workflows.jack_led import JackLedWorkflow
 from .workflows.mute_led import MuteLedWorkflow
+from .workflows.timer import TimerLedWorkflow
+from .workflows.voice_pipeline_led import VoicePipelineLedWorkflow
 from .workflows.volume_buttons import VolumeButtonWorkflow
+from .workflows.volume_led import VolumeLedWorkflow
 
 DEFAULT_LOCK_PATH = Path("/run/satellite1/hardware.lock")
 
@@ -51,7 +55,16 @@ class DaemonRuntime:
             None
         )
         self._xmos_availability_task: asyncio.Task[None] | None = None
-        self.led_ring = LedRingService(self.xmos) if config.led_ring.enabled else None
+        self.led_ring = (
+            LedRingService(self.xmos, system_color=config.led_ring.to_system_color())
+            if config.led_ring.enabled
+            else None
+        )
+        if config.lva.enabled and self.led_ring is None:
+            raise ValueError("LVA integration requires the LED ring to be enabled")
+        led_ring = self.led_ring
+        if config.lva.enabled:
+            assert led_ring is not None
         self.volume_buttons = (
             VolumeButtonWorkflow(
                 self.events,
@@ -59,13 +72,19 @@ class DaemonRuntime:
                 self.line_out,
                 self.speaker,
                 step=config.volume_buttons_workflow.step,
-                led_ring=self.led_ring,
-                led_enabled=config.volume_buttons_workflow.led_enabled,
-                led_color=config.volume_buttons_workflow.led_color,
-                led_muted_color=config.volume_buttons_workflow.led_muted_color,
-                led_timeout=config.volume_buttons_workflow.led_timeout,
             )
             if config.volume_buttons_workflow.enabled
+            else None
+        )
+        self.volume_led = (
+            VolumeLedWorkflow(
+                self.events,
+                self.led_ring,
+                color=config.volume_buttons_workflow.led_color,
+                muted_color=config.volume_buttons_workflow.led_muted_color,
+                timeout=config.volume_buttons_workflow.led_timeout,
+            )
+            if config.volume_buttons_workflow.led_enabled and self.led_ring is not None
             else None
         )
         self.jack_led = (
@@ -82,6 +101,8 @@ class DaemonRuntime:
             MuteLedWorkflow(
                 self.events,
                 self.xmos,
+                self.line_out,
+                self.line_out,
                 self.speaker,
                 self.led_ring,
                 mic_muted_color=config.mute_led_workflow.mic_muted_color,
@@ -90,6 +111,26 @@ class DaemonRuntime:
             if config.mute_led_workflow.enabled and self.led_ring is not None
             else None
         )
+        self.timer_led: TimerLedWorkflow | None = None
+        self.voice_pipeline_led: VoicePipelineLedWorkflow | None = None
+        self.lva: LvaAdapter | None = None
+        if config.lva.enabled:
+            assert led_ring is not None
+            self.timer_led = TimerLedWorkflow(
+                self.events,
+                led_ring,
+                max_ring_seconds=config.lva.timer_max_ring_seconds,
+            )
+            self.voice_pipeline_led = VoicePipelineLedWorkflow(self.events, led_ring)
+            self.lva = LvaAdapter(
+                self.events,
+                self.line_out,
+                self.line_out,
+                self.speaker,
+                led_ring,
+                url=config.lva.url,
+                reconnect_delay=config.lva.reconnect_delay,
+            )
         self.commands = DaemonCommands(
             self.power,
             self.line_out,
@@ -112,6 +153,8 @@ class DaemonRuntime:
             await self.xmos.start()
             if self.led_ring is not None:
                 await self.led_ring.start()
+            if self.volume_led is not None:
+                await self.volume_led.start()
             if self.xmos.available:
                 await self._start_audio()
             if self.jack_led is not None:
@@ -123,11 +166,23 @@ class DaemonRuntime:
                 await self.action.start()
             if self.volume_buttons is not None and self.xmos.available:
                 await self.volume_buttons.start()
+            if self.voice_pipeline_led is not None:
+                await self.voice_pipeline_led.start()
+            if self.timer_led is not None:
+                await self.timer_led.start()
+            if self.lva is not None:
+                await self.lva.start()
         except Exception:
             await self.close()
             raise
 
     async def close(self) -> None:
+        if self.lva is not None:
+            await self.lva.close()
+        if self.voice_pipeline_led is not None:
+            await self.voice_pipeline_led.close()
+        if self.timer_led is not None:
+            await self.timer_led.close()
         availability_task = self._xmos_availability_task
         self._xmos_availability_task = None
         if availability_task is not None:
@@ -142,6 +197,8 @@ class DaemonRuntime:
         await self._stop_audio()
         if self.mute_led is not None:
             await self.mute_led.close()
+        if self.volume_led is not None:
+            await self.volume_led.close()
         if self.jack_led is not None:
             await self.jack_led.close()
         if self.led_ring is not None:

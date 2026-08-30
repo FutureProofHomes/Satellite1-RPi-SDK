@@ -8,8 +8,8 @@ from satellite1d.contracts.events import (
     EventSubscriber,
     LineOutJackChanged,
 )
+from satellite1d.contracts.leds import LedAnimationController
 from satellite1d.led_patterns.jack import jack_plugged_frames, jack_unplugged_frames
-from satellite1d.services.led_ring import LedRingService
 
 log = logging.getLogger(__name__)
 
@@ -20,9 +20,9 @@ class JackLedWorkflow:
     def __init__(
         self,
         events: EventSubscriber,
-        led_ring: LedRingService,
+        led_ring: LedAnimationController,
         *,
-        color: tuple[int, int, int],
+        color: tuple[int, int, int] | None,
         frame_interval: float,
     ) -> None:
         self._events = events
@@ -56,12 +56,18 @@ class JackLedWorkflow:
             try:
                 if isinstance(event, LineOutJackChanged):
                     frames = (
-                        jack_plugged_frames(self._color)
+                        jack_plugged_frames(
+                            self._color or self._led_ring.system_color.raw_rgb,
+                            frame_interval=self._frame_interval,
+                        )
                         if event.plugged_in
-                        else jack_unplugged_frames(self._color)
+                        else jack_unplugged_frames(
+                            self._color or self._led_ring.system_color.raw_rgb,
+                            frame_interval=self._frame_interval,
+                        )
                     )
                     await self._led_ring.show_animation(
-                        frames, frame_interval=self._frame_interval
+                        frames, priority=20, play_for="once"
                     )
             except Exception:
                 log.warning("jack LED workflow failed", exc_info=True)

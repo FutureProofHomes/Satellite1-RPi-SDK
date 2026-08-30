@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Literal, Protocol, TypeAlias
 
-from .audio import AudioOutputId
+from .audio import AudioChangeSource, AudioOutputId
 
 
 @dataclass(frozen=True)
@@ -18,14 +18,55 @@ class MicMuteChanged:
 
 
 @dataclass(frozen=True)
-class SpeakerMuteChanged:
+class LvaMicSoftwareMuteChanged:
+    """LVA's software microphone mute state."""
+
     muted: bool
+
+
+VoicePipelineState: TypeAlias = Literal[
+    "idle", "wake_word_detected", "listening", "thinking", "tts_speaking", "error"
+]
+
+
+@dataclass(frozen=True)
+class VoicePipelineStateChanged:
+    """Current LVA voice-pipeline state."""
+
+    state: VoicePipelineState
+
+
+@dataclass(frozen=True)
+class LvaTimerChanged:
+    """Current state of an LVA timer."""
+
+    timer_id: str
+    name: str
+    total_seconds: int
+    seconds_left: int
+    ringing: bool = False
+
+
+@dataclass(frozen=True)
+class LvaConnectionChanged:
+    """Whether LVA is connected to Home Assistant."""
+
+    connected: bool
+
+
+@dataclass(frozen=True)
+class OutputMuteChanged:
+    output: AudioOutputId
+    muted: bool
+    volume: float
+    source: AudioChangeSource = "local"
 
 
 @dataclass(frozen=True)
 class VolumeChanged:
     output: AudioOutputId
     volume: float
+    source: AudioChangeSource = "local"
 
 
 @dataclass(frozen=True)
@@ -41,7 +82,11 @@ class XmosAvailabilityChanged:
 DaemonEvent: TypeAlias = (
     ButtonPressed
     | MicMuteChanged
-    | SpeakerMuteChanged
+    | LvaMicSoftwareMuteChanged
+    | VoicePipelineStateChanged
+    | LvaTimerChanged
+    | LvaConnectionChanged
+    | OutputMuteChanged
     | VolumeChanged
     | LineOutJackChanged
     | XmosAvailabilityChanged

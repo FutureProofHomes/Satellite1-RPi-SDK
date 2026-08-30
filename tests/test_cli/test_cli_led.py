@@ -30,7 +30,7 @@ def requests(monkeypatch):
 @pytest.mark.parametrize(
     ("argv", "expected"),
     [
-        (["set-color", "1", "2", "3"], ("render", [(1, 2, 3)] * 24)),
+        (["set-solid", "1", "2", "3"], ("render", [(1, 2, 3, 255)] * 24)),
         (["clear"], ("clear", None)),
     ],
 )

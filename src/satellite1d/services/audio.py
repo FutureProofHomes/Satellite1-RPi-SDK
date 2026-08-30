@@ -11,11 +11,11 @@ from satellite1_hw.audio_out import (
     SpeakerDacConfig,
     get_lineout_dac,
 )
-from satellite1d.contracts.audio import AudioOutputId
+from satellite1d.contracts.audio import AudioChangeSource, AudioOutputId
 from satellite1d.contracts.events import (
     EventPublisher,
     LineOutJackChanged,
-    SpeakerMuteChanged,
+    OutputMuteChanged,
     VolumeChanged,
 )
 from satellite1d.contracts.power import PowerContractReader
@@ -65,28 +65,36 @@ class _DacService:
                 float, await asyncio.to_thread(lambda: self._require_dac().volume)
             )
 
-    async def set_volume(self, volume: float) -> float:
+    async def set_volume(
+        self, volume: float, *, source: AudioChangeSource = "local"
+    ) -> float:
         async with self._lock:
             dac = self._require_dac()
             if not await asyncio.to_thread(dac.set_volume, volume):
                 raise AudioUnavailableError(f"failed to set {self._output} volume")
             current_volume = await asyncio.to_thread(lambda: dac.volume)
-        self._events.publish(VolumeChanged(self._output, current_volume))
+        self._events.publish(VolumeChanged(self._output, current_volume, source))
         return cast(float, current_volume)
 
     async def is_muted(self) -> bool:
         async with self._lock:
             return cast(bool, await asyncio.to_thread(self._require_dac().is_muted))
 
-    async def mute(self) -> None:
+    async def mute(self, *, source: AudioChangeSource = "local") -> None:
         async with self._lock:
-            if not await asyncio.to_thread(self._require_dac().set_mute_on):
+            dac = self._require_dac()
+            if not await asyncio.to_thread(dac.set_mute_on):
                 raise AudioUnavailableError(f"failed to mute {self._output}")
+            volume = await asyncio.to_thread(lambda: dac.volume)
+        self._events.publish(OutputMuteChanged(self._output, True, volume, source))
 
-    async def unmute(self) -> None:
+    async def unmute(self, *, source: AudioChangeSource = "local") -> None:
         async with self._lock:
-            if not await asyncio.to_thread(self._require_dac().set_mute_off):
+            dac = self._require_dac()
+            if not await asyncio.to_thread(dac.set_mute_off):
                 raise AudioUnavailableError(f"failed to unmute {self._output}")
+            volume = await asyncio.to_thread(lambda: dac.volume)
+        self._events.publish(OutputMuteChanged(self._output, False, volume, source))
 
     def _create_dac(self) -> LineOutDac | SpeakerDac:
         raise NotImplementedError
@@ -194,14 +202,6 @@ class SpeakerDacService(_DacService):
             dac = await asyncio.to_thread(SpeakerDac.from_cfg, self._config, power_mode)
             await asyncio.to_thread(dac.setup)
             self._dac = dac
-
-    async def mute(self) -> None:
-        await super().mute()
-        self._events.publish(SpeakerMuteChanged(muted=True))
-
-    async def unmute(self) -> None:
-        await super().unmute()
-        self._events.publish(SpeakerMuteChanged(muted=False))
 
     # AmpLevelControl
 

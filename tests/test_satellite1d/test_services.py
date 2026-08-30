@@ -8,7 +8,7 @@ from satellite1d.contracts.events import (
     ButtonPressed,
     LineOutJackChanged,
     MicMuteChanged,
-    SpeakerMuteChanged,
+    OutputMuteChanged,
     VolumeChanged,
 )
 from satellite1d.contracts.power import PowerContract
@@ -111,11 +111,11 @@ def test_dac_service_controls_volume_and_mute(factory, service_type, output):
             await service.close()
 
         assert dac.operations == ["setup", "set-volume", "mute", "unmute"]
-        expected_events = [VolumeChanged(output, 0.75)]
-        if output == "speaker":
-            expected_events.extend(
-                [SpeakerMuteChanged(True), SpeakerMuteChanged(False)]
-            )
+        expected_events = [
+            VolumeChanged(output, 0.75),
+            OutputMuteChanged(output, True, 0.75),
+            OutputMuteChanged(output, False, 0.75),
+        ]
         assert events.events == expected_events
 
     asyncio.run(run())

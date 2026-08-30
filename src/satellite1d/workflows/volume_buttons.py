@@ -5,8 +5,6 @@ import logging
 
 from satellite1d.contracts.audio import LineOutJackReader, VolumeController
 from satellite1d.contracts.events import ButtonPressed, DaemonEvent, EventSubscriber
-from satellite1d.led_patterns.volume import volume_frame
-from satellite1d.services.led_ring import LedRingService
 
 log = logging.getLogger(__name__)
 
@@ -20,21 +18,12 @@ class VolumeButtonWorkflow:
         speaker: VolumeController,
         *,
         step: float,
-        led_ring: LedRingService | None = None,
-        led_enabled: bool = False,
-        led_color: tuple[int, int, int] = (0, 90, 255),
-        led_muted_color: tuple[int, int, int] = (255, 0, 0),
-        led_timeout: float = 1.5,
     ) -> None:
         self._events = events
         self._line_out_jack = line_out_jack
         self._line_out = line_out
         self._speaker = speaker
         self._step = step
-        self._led_ring = led_ring if led_enabled else None
-        self._led_color = led_color
-        self._led_muted_color = led_muted_color
-        self._led_timeout = led_timeout
         self._subscriber: asyncio.Queue[DaemonEvent | None] | None = None
         self._task: asyncio.Task[None] | None = None
 
@@ -80,8 +69,7 @@ class VolumeButtonWorkflow:
         current = await controller.get_volume()
         change = self._step if event.name == "volume_up" else -self._step
         volume = await controller.set_volume(min(1.0, max(0.0, current + change)))
-        if self._led_ring is not None:
-            await self._led_ring.show_notification(
-                volume_frame(volume, self._led_color, self._led_muted_color),
-                duration=self._led_timeout,
-            )
+        if event.name == "volume_down" and volume == 0.0:
+            await controller.mute()
+        elif event.name == "volume_up" and await controller.is_muted():
+            await controller.unmute()

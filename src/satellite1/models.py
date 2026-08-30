@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
+AudioChangeSource: TypeAlias = Literal["local", "lva", "unix_socket"]
+
 
 @dataclass(frozen=True)
 class DaemonInfo:
@@ -54,6 +56,43 @@ class MicMuteChanged:
 
 
 @dataclass(frozen=True)
+class LvaMicSoftwareMuteChanged:
+    muted: bool
+
+
+@dataclass(frozen=True)
+class LvaConnectionChanged:
+    connected: bool
+
+
+@dataclass(frozen=True)
+class LvaTimerChanged:
+    timer_id: str
+    name: str
+    total_seconds: int
+    seconds_left: int
+    ringing: bool
+
+
+VoicePipelineState: TypeAlias = Literal[
+    "idle", "wake_word_detected", "listening", "thinking", "tts_speaking", "error"
+]
+
+
+@dataclass(frozen=True)
+class VoicePipelineStateChanged:
+    state: VoicePipelineState
+
+
+@dataclass(frozen=True)
+class OutputMuteChanged:
+    output: Literal["line-out", "speaker"]
+    muted: bool
+    volume: float
+    source: AudioChangeSource
+
+
+@dataclass(frozen=True)
 class SpeakerMuteChanged:
     muted: bool
 
@@ -62,6 +101,7 @@ class SpeakerMuteChanged:
 class VolumeChanged:
     output: Literal["line-out", "speaker"]
     volume: float
+    source: AudioChangeSource
 
 
 @dataclass(frozen=True)
@@ -69,10 +109,21 @@ class LineOutJackChanged:
     plugged_in: bool
 
 
+@dataclass(frozen=True)
+class XmosAvailabilityChanged:
+    available: bool
+
+
 Satellite1Event: TypeAlias = (
     ButtonPressed
     | MicMuteChanged
+    | LvaMicSoftwareMuteChanged
+    | LvaConnectionChanged
+    | LvaTimerChanged
+    | VoicePipelineStateChanged
+    | OutputMuteChanged
     | SpeakerMuteChanged
     | VolumeChanged
     | LineOutJackChanged
+    | XmosAvailabilityChanged
 )

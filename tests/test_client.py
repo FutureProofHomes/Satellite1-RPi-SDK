@@ -6,11 +6,36 @@ import pytest
 
 from satellite1 import (
     AsyncSatellite1Client,
+    LvaConnectionChanged,
+    LvaMicSoftwareMuteChanged,
+    LvaTimerChanged,
     Satellite1ConnectionError,
     Satellite1DaemonError,
+    SpeakerMuteChanged,
+    VolumeChanged,
+    XmosAvailabilityChanged,
 )
 from satellite1d.adapters.unix_socket import UnixSocketAdapter
-from satellite1d.contracts.events import ButtonPressed, MicMuteChanged
+from satellite1d.contracts.events import (
+    ButtonPressed,
+    MicMuteChanged,
+    OutputMuteChanged,
+)
+from satellite1d.contracts.events import (
+    LvaConnectionChanged as DaemonLvaConnectionChanged,
+)
+from satellite1d.contracts.events import (
+    LvaMicSoftwareMuteChanged as DaemonLvaMicSoftwareMuteChanged,
+)
+from satellite1d.contracts.events import (
+    LvaTimerChanged as DaemonLvaTimerChanged,
+)
+from satellite1d.contracts.events import (
+    VolumeChanged as DaemonVolumeChanged,
+)
+from satellite1d.contracts.events import (
+    XmosAvailabilityChanged as DaemonXmosAvailabilityChanged,
+)
 from satellite1d.events import EventHub
 
 
@@ -25,7 +50,7 @@ class FakeHardware:
     async def health(self):
         return {"status": "healthy", "dac": True, "xmos": True}
 
-    async def dispatch(self, method, params):
+    async def dispatch(self, method, params, *, audio_source="local"):
         self.calls.append((method, params))
         results = {
             "power.get_contract": {"available": True, "voltage": 9, "current": 2},
@@ -73,6 +98,12 @@ class LedHardware(FakeHardware):
         if method in {"led.render", "led.clear"}:
             self.calls.append((method, params))
             return {"ok": True}
+        if method == "led.get_system_color":
+            self.calls.append((method, params))
+            return {"color": [0, 90, 255]}
+        if method == "led.set_system_color":
+            self.calls.append((method, params))
+            return {"color": params["color"][:3]}
         return await super().dispatch(method, params)
 
 
@@ -149,6 +180,20 @@ def test_client_subscribes_to_typed_events():
                 assert (await anext(events)).muted is True
                 hardware.events.publish(ButtonPressed("action"))
                 assert (await anext(events)).name == "action"
+                hardware.events.publish(DaemonLvaMicSoftwareMuteChanged(muted=True))
+                assert await anext(events) == LvaMicSoftwareMuteChanged(muted=True)
+                hardware.events.publish(DaemonVolumeChanged("speaker", 0.4, "lva"))
+                assert await anext(events) == VolumeChanged("speaker", 0.4, "lva")
+                hardware.events.publish(OutputMuteChanged("speaker", True, 0.4))
+                assert await anext(events) == SpeakerMuteChanged(muted=True)
+                hardware.events.publish(DaemonLvaConnectionChanged(connected=True))
+                assert await anext(events) == LvaConnectionChanged(connected=True)
+                hardware.events.publish(DaemonLvaTimerChanged("tea", "Tea", 60, 30))
+                assert await anext(events) == LvaTimerChanged(
+                    "tea", "Tea", 60, 30, False
+                )
+                hardware.events.publish(DaemonXmosAvailabilityChanged(available=True))
+                assert await anext(events) == XmosAvailabilityChanged(available=True)
                 await events.aclose()
         finally:
             await server.close()
@@ -167,12 +212,20 @@ def test_client_renders_and_clears_led_frames():
                 assert "led.render" in satellite.daemon_info.capabilities
                 await satellite.led.render_frame([(1, 2, 3)] * 24)
                 await satellite.led.clear()
+                assert await satellite.led.get_system_color() == (0, 90, 255)
+                assert await satellite.led.set_system_color((1, 2, 3, 128)) == (
+                    1,
+                    2,
+                    3,
+                )
         finally:
             await server.close()
 
         assert hardware.calls == [
             ("led.render", {"pixels": [[1, 2, 3]] * 24}),
             ("led.clear", {}),
+            ("led.get_system_color", {}),
+            ("led.set_system_color", {"color": [1, 2, 3, 128]}),
         ]
 
     asyncio.run(run())
