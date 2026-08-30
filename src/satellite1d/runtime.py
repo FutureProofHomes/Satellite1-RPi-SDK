@@ -93,11 +93,11 @@ class DaemonRuntime:
             VolumeLedWorkflow(
                 self.events,
                 self.led_ring,
-                color=config.volume_buttons_workflow.led_color,
-                muted_color=config.volume_buttons_workflow.led_muted_color,
-                timeout=config.volume_buttons_workflow.led_timeout,
+                color=config.volume_workflow.color,
+                muted_color=config.volume_workflow.muted_color,
+                timeout=config.volume_workflow.timeout,
             )
-            if config.volume_buttons_workflow.led_enabled and self.led_ring is not None
+            if config.volume_workflow.enabled and self.led_ring is not None
             else None
         )
         self.jack_led = (

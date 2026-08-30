@@ -110,14 +110,25 @@ class VolumeButtonsWorkflowConfig(BaseModel):
 
     enabled: bool = False
     step: float = Field(0.05, gt=0.0, le=1.0)
-    led_enabled: bool = False
-    led_color: tuple[int, int, int] | None = None
-    led_muted_color: tuple[int, int, int] = (255, 0, 0)
-    led_timeout: float = Field(1.5, gt=0.0)
 
-    @field_validator("led_color", "led_muted_color")
+
+class VolumeWorkflowConfig(BaseModel):
+    """Optional LED feedback for output volume changes."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = (
+        "workflows.volume",
+        "workflows.volume_led",
+    )
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    color: tuple[int, int, int] | None = None
+    muted_color: tuple[int, int, int] = (255, 0, 0)
+    timeout: float = Field(1.5, gt=0.0)
+
+    @field_validator("color", "muted_color")
     @classmethod
-    def validate_led_color(
+    def validate_color(
         cls, color: tuple[int, int, int] | None
     ) -> tuple[int, int, int] | None:
         if color is None:
@@ -299,6 +310,7 @@ class DaemonConfig:
     jack_led_workflow: JackLedWorkflowConfig
     mute_led_workflow: MuteLedWorkflowConfig
     led_ring: LedRingConfig
+    volume_workflow: VolumeWorkflowConfig = field(default_factory=VolumeWorkflowConfig)
     lva: LvaConfig = field(
         default_factory=lambda: LvaConfig(
             reconnect_delay=3.0,
@@ -323,6 +335,7 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         volume_buttons_workflow=load_from_toml(
             VolumeButtonsWorkflowConfig, config_path=config_path
         ),
+        volume_workflow=load_from_toml(VolumeWorkflowConfig, config_path=config_path),
         jack_led_workflow=load_from_toml(
             JackLedWorkflowConfig, config_path=config_path
         ),
