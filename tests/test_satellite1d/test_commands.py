@@ -3,6 +3,13 @@ import asyncio
 import pytest
 
 from satellite1d.commands import DaemonCommands
+from satellite1d.contracts.events import (
+    LineOutJackChanged,
+    MicMuteChanged,
+    OutputMuteChanged,
+    VolumeChanged,
+    XmosAvailabilityChanged,
+)
 from satellite1d.contracts.leds import LedColor
 
 
@@ -55,6 +62,60 @@ def test_dac_set_volume_rejects_non_finite_and_out_of_range_values():
                 await commands.dispatch("dac.set_volume", {"volume": volume})
 
         assert not speaker.volumes
+
+    asyncio.run(run())
+
+
+def test_current_events_omits_unavailable_or_failed_hardware_facts():
+    class Xmos:
+        available = False
+
+    class Dac:
+        available = False
+
+    async def run() -> None:
+        commands = DaemonCommands(object(), Dac(), Dac(), Xmos())
+
+        assert await commands.current_events() == [XmosAvailabilityChanged(False)]
+
+    asyncio.run(run())
+
+
+def test_current_events_keeps_available_facts_when_another_read_fails():
+    class Xmos:
+        available = True
+
+        async def get_microphone_mute(self) -> bool:
+            return True
+
+    class LineOut:
+        available = True
+
+        async def get_volume(self) -> float:
+            raise RuntimeError("read failed")
+
+        async def is_jack_plugged_in(self) -> bool:
+            return True
+
+    class Speaker:
+        available = True
+
+        async def is_muted(self) -> bool:
+            return False
+
+        async def get_volume(self) -> float:
+            return 0.5
+
+    async def run() -> None:
+        commands = DaemonCommands(object(), LineOut(), Speaker(), Xmos())
+
+        assert await commands.current_events() == [
+            XmosAvailabilityChanged(True),
+            MicMuteChanged(True),
+            OutputMuteChanged("speaker", False, 0.5),
+            VolumeChanged("speaker", 0.5),
+            LineOutJackChanged(True),
+        ]
 
     asyncio.run(run())
 

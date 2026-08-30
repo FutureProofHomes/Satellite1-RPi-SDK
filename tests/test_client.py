@@ -167,6 +167,42 @@ def test_client_requires_a_connection():
     asyncio.run(run())
 
 
+def test_client_closes_a_timed_out_connection_before_reconnecting():
+    class SlowHardware(FakeHardware):
+        def __init__(self) -> None:
+            super().__init__()
+            self.health_calls = 0
+
+        async def health(self):
+            self.health_calls += 1
+            if self.health_calls == 1:
+                await asyncio.sleep(0.05)
+            return await super().health()
+
+    async def run() -> None:
+        hardware = SlowHardware()
+        server = UnixSocketAdapter(hardware, _socket_path())
+        await server.start()
+        client = AsyncSatellite1Client(server.socket_path, timeout=0.01)
+        try:
+            await client.connect()
+            with pytest.raises(
+                Satellite1ConnectionError, match="request to satellite1d"
+            ):
+                await client.health()
+            with pytest.raises(Satellite1ConnectionError, match="not connected"):
+                await client.health()
+
+            await asyncio.sleep(0.05)
+            await client.connect()
+            assert (await client.health()).status == "healthy"
+        finally:
+            await client.close()
+            await server.close()
+
+    asyncio.run(run())
+
+
 def test_client_subscribes_to_typed_events():
     async def run() -> None:
         hardware = EventHardware()
