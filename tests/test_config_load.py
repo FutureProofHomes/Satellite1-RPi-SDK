@@ -226,3 +226,27 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
     assert config.mute_led_workflow.enabled
     assert config.mute_led_workflow.mic_muted_color == (10, 11, 12)
     assert config.mute_led_workflow.speaker_muted_color == (13, 14, 15)
+
+
+def test_audio_volume_restoration_defaults_and_can_be_disabled(tmp_path: Path):
+    default = load_daemon_config(tmp_path / "nope.toml")
+    assert default.line_out.restore_volume_on_startup
+    assert default.speaker.restore_volume_on_startup
+    assert not default.line_out.startup_muted
+    assert not default.speaker.startup_muted
+
+    config_path = tmp_path / "conf.toml"
+    write_toml(
+        config_path,
+        """
+        [line_out]
+        restore_volume_on_startup = false
+
+        [speaker]
+        restore_volume_on_startup = false
+        """,
+    )
+
+    config = load_daemon_config(config_path)
+    assert not config.line_out.restore_volume_on_startup
+    assert not config.speaker.restore_volume_on_startup

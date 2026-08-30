@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -12,7 +13,11 @@ from satellite1d.contracts.events import (
     VolumeChanged,
 )
 from satellite1d.contracts.power import PowerContract
-from satellite1d.services.audio import LineOutDacService, SpeakerDacService
+from satellite1d.services.audio import (
+    LineOutDacService,
+    SpeakerDacService,
+    VolumeStateStore,
+)
 from satellite1d.services.environment import EnvironmentService
 from satellite1d.services.gpio import ActionButtonService, XmosResetService
 from satellite1d.services.power import PowerDeliveryService
@@ -51,7 +56,9 @@ def test_action_button_service_emits_one_event_for_a_confirmed_press():
         ("SpeakerDac.from_cfg", SpeakerDacService, "speaker"),
     ],
 )
-def test_dac_service_controls_volume_and_mute(factory, service_type, output):
+def test_dac_service_controls_volume_and_mute(
+    factory, service_type, output, tmp_path: Path
+):
     class Dac:
         def __init__(self) -> None:
             self.volume = 0.5
@@ -94,11 +101,24 @@ def test_dac_service_controls_volume_and_mute(factory, service_type, output):
     async def run() -> None:
         dac = Dac()
         events = Events()
+        config = SimpleNamespace(startup_volume=0.5, startup_muted=False)
+        volume_state = VolumeStateStore(tmp_path / "audio-state.json")
         with patch(f"satellite1d.services.audio.{factory}", return_value=dac):
             service = (
-                service_type(object(), events)
+                service_type(
+                    config,
+                    events,
+                    volume_state,
+                    restore_volume_on_startup=True,
+                )
                 if service_type is LineOutDacService
-                else service_type(object(), Power(), events)
+                else service_type(
+                    config,
+                    Power(),
+                    events,
+                    volume_state,
+                    restore_volume_on_startup=True,
+                )
             )
             await service.start()
             assert await service.get_volume() == 0.5
@@ -110,7 +130,15 @@ def test_dac_service_controls_volume_and_mute(factory, service_type, output):
             assert not await service.is_muted()
             await service.close()
 
-        assert dac.operations == ["setup", "set-volume", "mute", "unmute"]
+        assert dac.operations == [
+            "setup",
+            "set-volume",
+            "unmute",
+            "set-volume",
+            "mute",
+            "unmute",
+        ]
+        assert volume_state.load(output) == 0.75
         expected_events = [
             VolumeChanged(output, 0.75),
             OutputMuteChanged(output, True, 0.75),
@@ -121,7 +149,7 @@ def test_dac_service_controls_volume_and_mute(factory, service_type, output):
     asyncio.run(run())
 
 
-def test_line_out_dac_service_emits_jack_state_changes():
+def test_line_out_dac_service_emits_jack_state_changes(tmp_path: Path):
     class Events:
         def __init__(self) -> None:
             self.events = []
@@ -129,7 +157,12 @@ def test_line_out_dac_service_emits_jack_state_changes():
         def publish(self, event) -> None:
             self.events.append(event)
 
-    service = LineOutDacService(object(), Events())
+    service = LineOutDacService(
+        SimpleNamespace(startup_volume=0.5, startup_muted=False),
+        Events(),
+        VolumeStateStore(tmp_path / "audio-state.json"),
+        restore_volume_on_startup=True,
+    )
 
     service._process_jack_state(False)
     service._process_jack_state(False)
@@ -144,16 +177,30 @@ def test_line_out_dac_service_emits_jack_state_changes():
     ]
 
 
-def test_speaker_dac_service_controls_amp_level():
+def test_speaker_dac_service_controls_amp_level(tmp_path: Path):
     class Dac:
         def __init__(self) -> None:
             self.amp_level = 8
+            self.volume = 0.5
+            self.muted = False
 
         def setup(self) -> None:
             pass
 
         def set_amp_level(self, level: int) -> bool:
             self.amp_level = level
+            return True
+
+        def set_volume(self, volume: float) -> bool:
+            self.volume = volume
+            return True
+
+        def set_mute_on(self) -> bool:
+            self.muted = True
+            return True
+
+        def set_mute_off(self) -> bool:
+            self.muted = False
             return True
 
     class Events:
@@ -167,13 +214,107 @@ def test_speaker_dac_service_controls_amp_level():
     async def run() -> None:
         dac = Dac()
         with patch("satellite1d.services.audio.SpeakerDac.from_cfg", return_value=dac):
-            service = SpeakerDacService(object(), Power(), Events())
+            service = SpeakerDacService(
+                SimpleNamespace(startup_volume=0.5, startup_muted=False),
+                Power(),
+                Events(),
+                VolumeStateStore(tmp_path / "audio-state.json"),
+                restore_volume_on_startup=True,
+            )
             await service.start()
             assert await service.get_amp_level() == 8
             assert await service.set_amp_level(12) == 12
             await service.close()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    ("restore_volume_on_startup", "expected_volume"),
+    [(True, 0.75), (False, 0.25)],
+)
+def test_dac_service_applies_selected_volume_then_startup_mute(
+    tmp_path: Path,
+    restore_volume_on_startup: bool,
+    expected_volume: float,
+):
+    class Dac:
+        def __init__(self) -> None:
+            self.volume = 0.0
+            self.muted = False
+            self.operations: list[str] = []
+
+        def setup(self) -> None:
+            self.operations.append("setup")
+
+        def set_volume(self, volume: float) -> bool:
+            self.volume = volume
+            self.operations.append(f"volume:{volume}")
+            return True
+
+        def set_mute_on(self) -> bool:
+            self.muted = True
+            self.operations.append("mute")
+            return True
+
+        def set_mute_off(self) -> bool:
+            self.muted = False
+            self.operations.append("unmute")
+            return True
+
+        def is_muted(self) -> bool:
+            return self.muted
+
+        @property
+        def plugged_in(self) -> bool:
+            return False
+
+    class Events:
+        def publish(self, event) -> None:
+            pass
+
+    async def run() -> None:
+        dac = Dac()
+        volume_state = VolumeStateStore(tmp_path / "audio-state.json")
+        volume_state.save("line-out", 0.75)
+        with patch("satellite1d.services.audio.get_lineout_dac", return_value=dac):
+            service = LineOutDacService(
+                SimpleNamespace(startup_volume=0.25, startup_muted=True),
+                Events(),
+                volume_state,
+                restore_volume_on_startup=restore_volume_on_startup,
+            )
+            await service.start()
+            assert await service.get_volume() == expected_volume
+            assert await service.is_muted()
+            await service.close()
+
+        assert dac.operations == ["setup", f"volume:{expected_volume}", "mute"]
+
+    asyncio.run(run())
+
+
+def test_volume_state_store_keeps_outputs_independent(tmp_path: Path):
+    volume_state = VolumeStateStore(tmp_path / "audio-state.json")
+
+    volume_state.save("line-out", 0.25)
+    volume_state.save("speaker", 0.75)
+
+    assert volume_state.load("line-out") == 0.25
+    assert volume_state.load("speaker") == 0.75
+
+
+def test_volume_state_store_ignores_invalid_saved_volume(tmp_path: Path):
+    state_path = tmp_path / "audio-state.json"
+    state_path.write_text('{"line-out": 2}', encoding="utf-8")
+
+    assert VolumeStateStore(state_path).load("line-out") is None
+
+
+def test_volume_state_store_save_failure_is_nonfatal(tmp_path: Path):
+    volume_state = VolumeStateStore(tmp_path)
+
+    volume_state.save("line-out", 0.5)
 
 
 def test_power_delivery_service_reads_a_complete_contract():
