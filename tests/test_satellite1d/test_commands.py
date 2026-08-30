@@ -170,8 +170,7 @@ def test_environment_command_serializes_nullable_sensor_readings():
                 {
                     "temperature_c": 23.5,
                     "humidity_percent": 45.0,
-                    "ambient_light_channel_0": None,
-                    "ambient_light_channel_1": None,
+                    "illuminance_lux": None,
                 },
             )()
 
@@ -182,8 +181,7 @@ def test_environment_command_serializes_nullable_sensor_readings():
         assert await commands.dispatch("environment.get_readings", {}) == {
             "temperature_c": 23.5,
             "humidity_percent": 45.0,
-            "ambient_light_channel_0": None,
-            "ambient_light_channel_1": None,
+            "illuminance_lux": None,
         }
 
     asyncio.run(run())

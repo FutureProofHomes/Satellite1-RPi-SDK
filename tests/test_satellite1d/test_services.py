@@ -196,8 +196,8 @@ def test_environment_service_reads_both_sensors_independently():
         def begin(self) -> None:
             self.initialized = True
 
-        def read_channels(self) -> tuple[int, int]:
-            return 123, 456
+        def read_illuminance_lux(self) -> float:
+            return 12.5
 
     async def run() -> None:
         light_sensor = LightSensor()
@@ -210,8 +210,7 @@ def test_environment_service_reads_both_sensors_independently():
         assert light_sensor.initialized
         assert (await service.get_readings()).temperature_c == 23.5
         assert (await service.get_readings()).humidity_percent == 45.0
-        assert (await service.get_readings()).ambient_light_channel_0 == 123
-        assert (await service.get_readings()).ambient_light_channel_1 == 456
+        assert (await service.get_readings()).illuminance_lux == 12.5
 
     asyncio.run(run())
 
@@ -221,7 +220,7 @@ def test_environment_service_keeps_readings_available_independently():
         def begin(self) -> None:
             raise RuntimeError("missing sensor")
 
-        def read_channels(self) -> tuple[int, int]:
+        def read_illuminance_lux(self) -> float:
             raise AssertionError("unreachable")
 
     async def run() -> None:
@@ -231,8 +230,7 @@ def test_environment_service_keeps_readings_available_independently():
         )
         await service.start()
 
-        assert (await service.get_readings()).ambient_light_channel_0 is None
-        assert (await service.get_readings()).ambient_light_channel_1 is None
+        assert (await service.get_readings()).illuminance_lux is None
         assert (await service.get_readings()).temperature_c == 23.5
 
     asyncio.run(run())

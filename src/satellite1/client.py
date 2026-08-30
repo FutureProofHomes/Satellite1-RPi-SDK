@@ -226,12 +226,7 @@ class _EnvironmentClient:
         return EnvironmentReadings(
             temperature_c=_optional_number(result, "temperature_c"),
             humidity_percent=_optional_number(result, "humidity_percent"),
-            ambient_light_channel_0=_optional_integer(
-                result, "ambient_light_channel_0"
-            ),
-            ambient_light_channel_1=_optional_integer(
-                result, "ambient_light_channel_1"
-            ),
+            illuminance_lux=_optional_number(result, "illuminance_lux"),
         )
 
 

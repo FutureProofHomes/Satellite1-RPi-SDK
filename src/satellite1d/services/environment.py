@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 class _AmbientLightSensor(Protocol):
     def begin(self) -> None: ...
 
-    def read_channels(self) -> tuple[int, int]: ...
+    def read_illuminance_lux(self) -> float: ...
 
 
 class EnvironmentService:
@@ -49,8 +49,7 @@ class EnvironmentService:
         """Return current sensor readings, leaving unavailable fields as ``None``."""
         temperature_c: float | None = None
         humidity_percent: float | None = None
-        ambient_light_channel_0: int | None = None
-        ambient_light_channel_1: int | None = None
+        illuminance_lux: float | None = None
 
         try:
             temperature_c, humidity_percent = await asyncio.to_thread(
@@ -61,16 +60,14 @@ class EnvironmentService:
 
         if self._ltr303 is not None:
             try:
-                (
-                    ambient_light_channel_0,
-                    ambient_light_channel_1,
-                ) = await asyncio.to_thread(self._ltr303.read_channels)
+                illuminance_lux = await asyncio.to_thread(
+                    self._ltr303.read_illuminance_lux
+                )
             except Exception:
                 log.warning("LTR303 reading failed", exc_info=True)
 
         return EnvironmentReadings(
             temperature_c=temperature_c,
             humidity_percent=humidity_percent,
-            ambient_light_channel_0=ambient_light_channel_0,
-            ambient_light_channel_1=ambient_light_channel_1,
+            illuminance_lux=illuminance_lux,
         )

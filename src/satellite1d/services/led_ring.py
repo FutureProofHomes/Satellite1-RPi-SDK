@@ -105,6 +105,10 @@ class LedRingService:
     def system_color(self) -> LedColor:
         return self._system_color
 
+    @property
+    def background_frame(self) -> LedFrame:
+        return self._normal_frame
+
     async def set_system_color(self, color: LedColor) -> None:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")

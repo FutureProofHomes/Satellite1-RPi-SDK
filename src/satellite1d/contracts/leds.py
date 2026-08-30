@@ -157,6 +157,9 @@ class LedSystemColorController(Protocol):
 class LedBackgroundController(LedSystemColorController, Protocol):
     """LED operations that manage the persistent background frame."""
 
+    @property
+    def background_frame(self) -> LedFrame: ...
+
     async def set_background_frame(self, frame: LedFrame) -> None: ...
 
     async def clear(self) -> None: ...

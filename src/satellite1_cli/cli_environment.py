@@ -20,8 +20,7 @@ def _handle(args: argparse.Namespace) -> int:
     readings = asyncio.run(get_readings())
     print(f"Temperature: {_format(readings.temperature_c, ' C')}")
     print(f"Humidity: {_format(readings.humidity_percent, ' %')}")
-    print(f"Ambient light channel 0: {_format(readings.ambient_light_channel_0)}")
-    print(f"Ambient light channel 1: {_format(readings.ambient_light_channel_1)}")
+    print(f"Illuminance: {_format(readings.illuminance_lux, ' lx')}")
     return 0
 
 
