@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 
 from .adapters.unix_socket import DEFAULT_SOCKET_PATH, UnixSocketAdapter
-from .config import load_daemon_config
+from .config import DaemonConfig, load_daemon_config
 from .event_sinks.evdev import EvdevButtonSink
 from .runtime import DEFAULT_LOCK_PATH, DaemonRuntime
 
@@ -34,13 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def _run(args: argparse.Namespace) -> None:
+async def _run(args: argparse.Namespace, config: DaemonConfig) -> None:
     lock_path = args.lock_file or (
         DEFAULT_LOCK_PATH
         if args.socket == DEFAULT_SOCKET_PATH
         else args.socket.with_suffix(".lock")
     )
-    config = load_daemon_config(args.config)
     runtime = DaemonRuntime(config, lock_path)
     events = runtime.events
     evdev: EvdevButtonSink | None = None
@@ -67,12 +66,26 @@ async def _run(args: argparse.Namespace) -> None:
             evdev.close()
 
 
+def _configure_logging(configured_level: str, verbosity: int) -> None:
+    level = logging.getLevelName(configured_level)
+    assert isinstance(level, int)
+    if verbosity == 1:
+        level = min(level, logging.INFO)
+    elif verbosity >= 2:
+        level = logging.DEBUG
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    level = logging.WARNING if args.verbose == 0 else logging.INFO
-    logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
+    config = load_daemon_config(args.config)
+    _configure_logging(config.logging.level, args.verbose)
     try:
-        asyncio.run(_run(args))
+        asyncio.run(_run(args, config))
     except KeyboardInterrupt:
         return 0
     return 0

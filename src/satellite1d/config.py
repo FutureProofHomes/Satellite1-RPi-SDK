@@ -269,6 +269,15 @@ class MqttConfig(BaseModel):
         return value
 
 
+class LoggingConfig(BaseModel):
+    """Daemon log threshold for the systemd journal."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("logging",)
+    model_config = ConfigDict(extra="forbid")
+
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+
 def _validate_mqtt_string(value: str) -> None:
     if any(
         category(character) == "Cc"
@@ -304,6 +313,7 @@ class DaemonConfig:
             port=1883, publish_interval=60.0, reconnect_delay=3.0
         )
     )
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
 
 
 def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
@@ -325,4 +335,5 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
         lva=load_from_toml(LvaConfig, config_path=config_path),
         mqtt=load_from_toml(MqttConfig, config_path=config_path),
+        logging=load_from_toml(LoggingConfig, config_path=config_path),
     )

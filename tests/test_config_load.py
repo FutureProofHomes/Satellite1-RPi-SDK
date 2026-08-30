@@ -5,6 +5,7 @@ import textwrap
 from pathlib import Path
 from typing import ClassVar, Literal
 
+import pytest
 from pydantic import BaseModel, ConfigDict, Field
 
 from satellite1d.config import load_daemon_config
@@ -250,3 +251,29 @@ def test_audio_volume_restoration_defaults_and_can_be_disabled(tmp_path: Path):
     config = load_daemon_config(config_path)
     assert not config.line_out.restore_volume_on_startup
     assert not config.speaker.restore_volume_on_startup
+
+
+def test_logging_level_defaults_and_can_be_configured(tmp_path: Path):
+    default = load_daemon_config(tmp_path / "nope.toml")
+    assert default.logging.level == "INFO"
+
+    config_path = tmp_path / "conf.toml"
+    write_toml(
+        config_path,
+        """
+        [logging]
+        level = "DEBUG"
+        """,
+    )
+
+    assert load_daemon_config(config_path).logging.level == "DEBUG"
+
+    write_toml(
+        config_path,
+        """
+        [logging]
+        level = "TRACE"
+        """,
+    )
+    with pytest.raises(ValueError):
+        load_daemon_config(config_path)
