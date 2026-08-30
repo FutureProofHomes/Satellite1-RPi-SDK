@@ -1,6 +1,7 @@
 import asyncio
 import json
 
+import pytest
 from websockets.asyncio.server import ServerConnection, serve
 
 from satellite1d.adapters.lva import LvaAdapter
@@ -176,6 +177,54 @@ def test_lva_adapter_forwards_hardware_events_and_publishes_lva_events():
             await adapter.close()
             events.unsubscribe(lva_events)
             assert not events.has_subscribers
+
+    asyncio.run(run())
+
+
+def test_lva_adapter_works_without_an_led_ring():
+    async def run() -> None:
+        connected = asyncio.Event()
+        received_commands: asyncio.Queue[dict] = asyncio.Queue()
+        connection: ServerConnection | None = None
+
+        async def handler(websocket: ServerConnection) -> None:
+            nonlocal connection
+            connection = websocket
+            connected.set()
+            async for message in websocket:
+                received_commands.put_nowait(json.loads(message))
+
+        async with serve(handler, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            speaker = Audio()
+            adapter = LvaAdapter(
+                EventHub(),
+                Jack(plugged_in=False),
+                Audio(),
+                speaker,
+                None,
+                url=f"ws://127.0.0.1:{port}",
+                reconnect_delay=0.01,
+            )
+            await adapter.start()
+            await asyncio.wait_for(connected.wait(), timeout=1)
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(received_commands.get(), timeout=0.05)
+
+            assert connection is not None
+            await connection.send(
+                json.dumps({"event": "volume_changed", "data": {"volume": 0.8}})
+            )
+            await connection.send(
+                json.dumps({"event": "volume_muted", "data": {"muted": True}})
+            )
+            for _ in range(10):
+                if speaker.volumes == [0.8] and speaker.mutes == [True]:
+                    break
+                await asyncio.sleep(0)
+            assert speaker.volumes == [0.8]
+            assert speaker.mutes == [True]
+            await adapter.close()
 
     asyncio.run(run())
 

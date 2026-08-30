@@ -73,11 +73,7 @@ class DaemonRuntime:
             if config.led_ring.enabled
             else None
         )
-        if config.lva.enabled and self.led_ring is None:
-            raise ValueError("LVA integration requires the LED ring to be enabled")
         led_ring = self.led_ring
-        if config.lva.enabled:
-            assert led_ring is not None
         self.volume_buttons = (
             VolumeButtonWorkflow(
                 self.events,
@@ -128,20 +124,20 @@ class DaemonRuntime:
         self.voice_pipeline_led: VoicePipelineLedWorkflow | None = None
         self.lva: LvaAdapter | None = None
         self.mqtt: MqttAdapter | None = None
-        if config.lva.enabled:
-            assert led_ring is not None
+        if config.lva.enabled and led_ring is not None:
             self.timer_led = TimerLedWorkflow(
                 self.events,
                 led_ring,
                 max_ring_seconds=config.lva.timer_max_ring_seconds,
             )
             self.voice_pipeline_led = VoicePipelineLedWorkflow(self.events, led_ring)
+        if config.lva.enabled:
             self.lva = LvaAdapter(
                 self.events,
                 self.line_out,
                 self.line_out,
                 self.speaker,
-                led_ring,
+                self.led_ring,
                 url=config.lva.url,
                 reconnect_delay=config.lva.reconnect_delay,
             )
