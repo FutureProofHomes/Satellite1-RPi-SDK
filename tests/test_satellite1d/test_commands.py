@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from satellite1d.commands import DaemonCommands
 from satellite1d.contracts.leds import LedColor
 
@@ -27,6 +29,32 @@ def test_health_reports_available_hardware():
             "xmos": False,
             "led_ring": False,
         }
+
+    asyncio.run(run())
+
+
+def test_dac_set_volume_rejects_non_finite_and_out_of_range_values():
+    class Dac:
+        def __init__(self) -> None:
+            self.volumes = []
+
+        async def is_jack_plugged_in(self) -> bool:
+            return False
+
+        async def set_volume(self, volume, *, source):
+            self.volumes.append((volume, source))
+            return volume
+
+    async def run() -> None:
+        line_out = Dac()
+        speaker = Dac()
+        commands = DaemonCommands(object(), line_out, speaker, object())
+
+        for volume in (float("nan"), float("inf"), float("-inf"), -0.1, 1.1):
+            with pytest.raises(ValueError, match="finite number from 0 to 1"):
+                await commands.dispatch("dac.set_volume", {"volume": volume})
+
+        assert not speaker.volumes
 
     asyncio.run(run())
 
