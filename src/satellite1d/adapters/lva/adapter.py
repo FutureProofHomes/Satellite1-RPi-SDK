@@ -85,6 +85,7 @@ class LvaAdapter:
         *,
         url: str = DEFAULT_URL,
         reconnect_delay: float = DEFAULT_RECONNECT_DELAY,
+        update_system_color: bool = True,
     ) -> None:
         self._events = events
         self._line_out_jack = line_out_jack
@@ -93,6 +94,7 @@ class LvaAdapter:
         self._led_ring = led_ring
         self._url = url
         self._reconnect_delay = reconnect_delay
+        self._update_system_color = update_system_color
         self._actions: asyncio.Queue[LvaCommand] = asyncio.Queue(maxsize=32)
         self._pending_mic_command: LvaCommand | None = None
         self._pending_volume_command: LvaCommand | None = None
@@ -398,7 +400,8 @@ class LvaAdapter:
                 await led_ring.clear()
                 return
             assert command.color is not None
-            await led_ring.set_system_color(command.color)
+            if self._update_system_color:
+                await led_ring.set_system_color(command.color)
             await led_ring.set_background_frame(LedFrame.solid(command.color))
         except Exception:
             log.warning("applying LVA light command failed", exc_info=True)

@@ -165,10 +165,10 @@ sat1 led set-system-color 0 90 255
 sat1 led set-system-color 255 96 0 --brightness 128
 ```
 
-The initial value comes from `[led_ring].system_color` in
-`/etc/satellite1.conf`. A value set with `sat1 led set-system-color` is saved
-to `/var/lib/satellite1/led-ring-color.json` and is restored on later daemon
-starts, overriding that configured initial value.
+Set `[led_ring].system_color` in `/etc/satellite1.conf` to make it
+authoritative on every daemon start. Otherwise, a value set with
+`sat1 led set-system-color`, LVA, or MQTT is saved to
+`/var/lib/satellite1/led-ring-color.json` and restored on later starts.
 
 ## Configuration
 

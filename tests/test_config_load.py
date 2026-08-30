@@ -197,6 +197,7 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
 
         [led_ring]
         enabled = true
+        system_color = [10, 20, 30]
 
         [workflows.volume-buttons]
         enabled = true
@@ -221,6 +222,7 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
     config = load_daemon_config(cfg_file)
     assert config.gpio.chip == "/dev/gpiochip4"
     assert config.led_ring.enabled
+    assert config.led_ring.system_color == (10, 20, 30)
     assert config.volume_buttons_workflow.enabled
     assert config.volume_workflow.enabled
     assert config.volume_workflow.color == (1, 2, 3)

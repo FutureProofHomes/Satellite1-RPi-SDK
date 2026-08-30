@@ -211,16 +211,20 @@ class LedRingConfig(BaseModel):
 
     enabled: bool = False
     backend: Literal["xmos"] = "xmos"
-    system_color: tuple[int, int, int] = (0, 90, 255)
+    system_color: tuple[int, int, int] | None = None
 
     @field_validator("system_color")
     @classmethod
-    def validate_system_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+    def validate_system_color(
+        cls, color: tuple[int, int, int] | None
+    ) -> tuple[int, int, int] | None:
+        if color is None:
+            return None
         LedColor(color)
         return color
 
-    def to_system_color(self) -> LedColor:
-        return LedColor(self.system_color)
+    def to_system_color(self) -> LedColor | None:
+        return LedColor(self.system_color) if self.system_color is not None else None
 
 
 class LvaConfig(BaseModel):

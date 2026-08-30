@@ -430,6 +430,40 @@ def test_lva_adapter_applies_led_ring_light_commands():
     asyncio.run(run())
 
 
+def test_lva_adapter_does_not_change_a_configured_system_color():
+    async def run() -> None:
+        led_ring = LedRing()
+        adapter = LvaAdapter(
+            EventHub(),
+            Jack(plugged_in=False),
+            Audio(),
+            Audio(),
+            led_ring,
+            update_system_color=False,
+        )
+
+        await adapter._apply_led_event(
+            "light_command",
+            {
+                "event": "light_command",
+                "data": {
+                    "object_id": "led_ring",
+                    "state": True,
+                    "red": 0.0,
+                    "green": 0.5,
+                    "blue": 1.0,
+                    "brightness": 0.5,
+                    "effect": "",
+                },
+            },
+        )
+
+        assert not led_ring.system_colors
+        assert led_ring.background_frames[-1].pixels == ((0, 64, 128),) * 24
+
+    asyncio.run(run())
+
+
 def test_lva_adapter_reregisters_led_ring_after_reconnecting():
     async def run() -> None:
         connections: asyncio.Queue[ServerConnection] = asyncio.Queue()

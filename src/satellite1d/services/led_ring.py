@@ -38,11 +38,12 @@ class LedRingService:
         self,
         renderer: LedFrameRenderer,
         *,
-        system_color: LedColor = DEFAULT_SYSTEM_COLOR,
+        system_color: LedColor | None = None,
         state_path: Path = DEFAULT_SYSTEM_COLOR_STATE_PATH,
     ) -> None:
         self._renderer = renderer
-        self._system_color = system_color
+        self._system_color = system_color or DEFAULT_SYSTEM_COLOR
+        self._restore_system_color = system_color is None
         self._state_path = state_path
         self._normal_frame = LedFrame.clear()
         self._active_frame = self._normal_frame
@@ -57,7 +58,8 @@ class LedRingService:
     # DaemonService
 
     async def start(self) -> None:
-        self._load_system_color()
+        if self._restore_system_color:
+            self._load_system_color()
         if self._task is None:
             self._task = asyncio.create_task(
                 self._render_pending_frames(), name="satellite1d-led-ring"

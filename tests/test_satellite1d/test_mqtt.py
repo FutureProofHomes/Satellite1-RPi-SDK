@@ -377,6 +377,7 @@ def test_mqtt_adapter_controls_led_ring_with_json_light_commands():
         assert led_ring.background_frames == [
             LedFrame.solid(LedColor((255, 0, 0), 128))
         ]
+        assert led_ring.system_color.raw_rgb == (128, 0, 0)
         assert client.published[-1] == (
             "satellite1/kitchen-satellite/led_ring/state",
             '{"brightness":128,"color":{"b":0,"g":0,"r":255},"state":"ON"}',
@@ -387,6 +388,36 @@ def test_mqtt_adapter_controls_led_ring_with_json_light_commands():
         assert off == (False, None)
         await adapter._apply_led_command(off)
         assert led_ring.cleared == 1
+
+    asyncio.run(run())
+
+
+def test_mqtt_adapter_does_not_change_a_configured_system_color():
+    async def run() -> None:
+        led_ring = LedRing()
+        adapter = MqttAdapter(
+            Environment(EnvironmentReadings(21.5, 42.0, 123)),
+            Power(PowerContract(9.0, 2.0)),
+            Xmos("1.2.3"),
+            Xmos("1.2.3"),
+            LineOut(False),
+            led_ring,
+            EventHub(),
+            MqttConfig(enabled=True),
+            device_info=DEVICE_INFO,
+            update_system_color=False,
+        )
+
+        command = adapter._parse_led_command(
+            b'{"state":"ON","color":{"r":255,"g":0,"b":0},"brightness":128}'
+        )
+        assert command is not None
+        await adapter._apply_led_command(command)
+
+        assert led_ring.system_color.raw_rgb == (0, 90, 255)
+        assert led_ring.background_frames == [
+            LedFrame.solid(LedColor((255, 0, 0), 128))
+        ]
 
     asyncio.run(run())
 

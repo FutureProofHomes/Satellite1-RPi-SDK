@@ -176,6 +176,30 @@ def test_led_ring_system_color_persists_effective_rgb(tmp_path):
     asyncio.run(run())
 
 
+def test_led_ring_configured_system_color_overrides_saved_state(tmp_path):
+    class Renderer:
+        available = True
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            pass
+
+    async def run() -> None:
+        state_path = tmp_path / "led-ring-color.json"
+        saved = LedRingService(Renderer(), state_path=state_path)
+        await saved.start()
+        await saved.set_system_color(LedColor((100, 80, 60)))
+        await saved.close()
+
+        configured = LedRingService(
+            Renderer(), system_color=LedColor((10, 20, 30)), state_path=state_path
+        )
+        await configured.start()
+        assert configured.system_color.raw_rgb == (10, 20, 30)
+        await configured.close()
+
+    asyncio.run(run())
+
+
 def test_timed_static_animation_overrides_and_then_restores_normal_frames():
     class Renderer:
         available = True

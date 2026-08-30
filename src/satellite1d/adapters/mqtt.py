@@ -80,6 +80,7 @@ class MqttAdapter:
         device_info: DeviceInfo,
         hostname: Callable[[], str] = socket.gethostname,
         client_factory: Callable[..., MqttConnection] = DEFAULT_CLIENT_FACTORY,
+        update_system_color: bool = True,
     ) -> None:
         self._environment = environment
         self._power = power
@@ -103,6 +104,7 @@ class MqttAdapter:
         if hardware_version := device_info.hardware_version:
             self._device["hw_version"] = hardware_version
         self._client_factory = client_factory
+        self._update_system_color = update_system_color
         self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -435,7 +437,8 @@ class MqttAdapter:
             await led_ring.clear()
             return
         assert color is not None
-        await led_ring.set_system_color(color)
+        if self._update_system_color:
+            await led_ring.set_system_color(color)
         await led_ring.set_background_frame(LedFrame.solid(color))
 
     async def _publish_led_state(self, client: MqttPublisher) -> None:
