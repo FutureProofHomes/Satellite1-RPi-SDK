@@ -20,10 +20,12 @@ class XmosStatus:
     gpio_port_b: int
 
 
-class XmosController(Protocol):
-    async def get_xmos_status(self) -> XmosStatus: ...
-
+class XmosFirmwareReader(Protocol):
     async def get_xmos_firmware(self) -> str: ...
+
+
+class XmosController(XmosFirmwareReader, Protocol):
+    async def get_xmos_status(self) -> XmosStatus: ...
 
     async def reset_xmos(self) -> bool: ...
 

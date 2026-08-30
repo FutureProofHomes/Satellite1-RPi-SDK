@@ -8,11 +8,13 @@ from typing import TextIO
 from satellite1_hw.sat1_hat import XMOS, ActionButton
 
 from .adapters.lva import LvaAdapter
+from .adapters.mqtt import MqttAdapter
 from .commands import DaemonCommands
 from .config import DaemonConfig
 from .contracts.events import DaemonEvent, XmosAvailabilityChanged
 from .events import EventHub
 from .services.audio import LineOutDacService, SpeakerDacService
+from .services.device_info import DeviceInfo
 from .services.environment import EnvironmentService
 from .services.gpio import ActionButtonService, XmosResetService
 from .services.led_ring import LedRingService
@@ -33,6 +35,7 @@ class DaemonRuntime:
         self, config: DaemonConfig, lock_path: Path = DEFAULT_LOCK_PATH
     ) -> None:
         self.events = EventHub()
+        self.device_info = DeviceInfo.from_system()
         self._lock_path = lock_path
         self._lock_file: TextIO | None = None
         self._gpio_chip = config.gpio.chip
@@ -114,6 +117,7 @@ class DaemonRuntime:
         self.timer_led: TimerLedWorkflow | None = None
         self.voice_pipeline_led: VoicePipelineLedWorkflow | None = None
         self.lva: LvaAdapter | None = None
+        self.mqtt: MqttAdapter | None = None
         if config.lva.enabled:
             assert led_ring is not None
             self.timer_led = TimerLedWorkflow(
@@ -130,6 +134,18 @@ class DaemonRuntime:
                 led_ring,
                 url=config.lva.url,
                 reconnect_delay=config.lva.reconnect_delay,
+            )
+        if config.mqtt.enabled:
+            self.mqtt = MqttAdapter(
+                self.environment,
+                self.power,
+                self.xmos,
+                self.xmos,
+                self.line_out,
+                self.led_ring,
+                self.events,
+                config.mqtt,
+                device_info=self.device_info,
             )
         self.commands = DaemonCommands(
             self.power,
@@ -172,11 +188,15 @@ class DaemonRuntime:
                 await self.timer_led.start()
             if self.lva is not None:
                 await self.lva.start()
+            if self.mqtt is not None:
+                await self.mqtt.start()
         except Exception:
             await self.close()
             raise
 
     async def close(self) -> None:
+        if self.mqtt is not None:
+            await self.mqtt.close()
         if self.lva is not None:
             await self.lva.close()
         if self.voice_pipeline_led is not None:

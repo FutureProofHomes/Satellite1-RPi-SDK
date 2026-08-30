@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Literal
+from unicodedata import category
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -231,6 +232,56 @@ class LvaConfig(BaseModel):
         return url
 
 
+class MqttConfig(BaseModel):
+    """Optional MQTT publishing for Satellite1 environment sensors."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("mqtt",)
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    host: str = "localhost"
+    port: int = Field(1883, ge=1, le=65535)
+    username: str | None = None
+    password_file: Path | None = None
+    topic_prefix: str = "satellite1"
+    device_id: str | None = None
+    publish_interval: float = Field(60.0, gt=0.0)
+    reconnect_delay: float = Field(3.0, gt=0.0)
+    tls: bool = False
+
+    @field_validator("topic_prefix")
+    @classmethod
+    def validate_topic_component(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.rstrip("/")
+        if not value or any(character in value for character in "#+"):
+            raise ValueError("must not be empty or contain MQTT wildcards")
+        _validate_mqtt_string(value)
+        return value
+
+    @field_validator("device_id")
+    @classmethod
+    def validate_device_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if not value or any(character in value for character in "/#+"):
+            raise ValueError("must not be empty or contain MQTT topic separators")
+        _validate_mqtt_string(value)
+        return value
+
+
+def _validate_mqtt_string(value: str) -> None:
+    if any(
+        category(character) == "Cc"
+        or 0xD800 <= ord(character) <= 0xDFFF
+        or 0xFDD0 <= ord(character) <= 0xFDEF
+        or ord(character) & 0xFFFF in {0xFFFE, 0xFFFF}
+        for character in value
+    ):
+        raise ValueError("must be a valid MQTT UTF-8 string")
+
+
 @dataclass(frozen=True)
 class DaemonConfig:
     """Effective hardware configuration loaded once at daemon startup."""
@@ -248,6 +299,11 @@ class DaemonConfig:
         default_factory=lambda: LvaConfig(
             reconnect_delay=3.0,
             timer_max_ring_seconds=900.0,
+        )
+    )
+    mqtt: MqttConfig = field(
+        default_factory=lambda: MqttConfig(
+            port=1883, publish_interval=60.0, reconnect_delay=3.0
         )
     )
 
@@ -270,4 +326,5 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         ),
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
         lva=load_from_toml(LvaConfig, config_path=config_path),
+        mqtt=load_from_toml(MqttConfig, config_path=config_path),
     )
