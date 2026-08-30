@@ -34,8 +34,7 @@ class EnvironmentReadings:
 
     temperature_c: float | None
     humidity_percent: float | None
-    ambient_light_channel_0: int | None
-    ambient_light_channel_1: int | None
+    illuminance_lux: float | None
 
 
 @dataclass(frozen=True)

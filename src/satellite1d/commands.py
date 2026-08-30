@@ -121,8 +121,7 @@ class DaemonCommands:
             return {
                 "temperature_c": readings.temperature_c,
                 "humidity_percent": readings.humidity_percent,
-                "ambient_light_channel_0": readings.ambient_light_channel_0,
-                "ambient_light_channel_1": readings.ambient_light_channel_1,
+                "illuminance_lux": readings.illuminance_lux,
             }
         if method == "mics.get_muted":
             return {"muted": await self._xmos.get_microphone_mute()}

@@ -13,8 +13,7 @@ def readings(monkeypatch):
                 {
                     "temperature_c": 23.5,
                     "humidity_percent": None,
-                    "ambient_light_channel_0": 123,
-                    "ambient_light_channel_1": None,
+                    "illuminance_lux": 123,
                 },
             )()
 
@@ -40,8 +39,5 @@ def test_environment_cli_uses_the_public_client(readings, capsys):
 
     assert cli_environment._handle(args) == 0
     assert capsys.readouterr().out == (
-        "Temperature: 23.5 C\n"
-        "Humidity: unavailable\n"
-        "Ambient light channel 0: 123\n"
-        "Ambient light channel 1: unavailable\n"
+        "Temperature: 23.5 C\nHumidity: unavailable\nIlluminance: 123 lx\n"
     )

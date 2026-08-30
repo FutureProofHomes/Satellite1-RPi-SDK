@@ -57,8 +57,7 @@ class FakeHardware:
             "environment.get_readings": {
                 "temperature_c": 23.5,
                 "humidity_percent": 45,
-                "ambient_light_channel_0": 123,
-                "ambient_light_channel_1": None,
+                "illuminance_lux": 123,
             },
             "dac.get_volume": {"volume": 0.5},
             "dac.get_amp_level": {"amp_level": 8},
@@ -135,7 +134,7 @@ def test_client_exposes_the_existing_daemon_capabilities():
                 assert (await satellite.power.get_contract()).voltage == 9.0
                 readings = await satellite.environment.get_readings()
                 assert readings.temperature_c == 23.5
-                assert readings.ambient_light_channel_1 is None
+                assert readings.illuminance_lux == 123.0
                 assert await satellite.dac.get_volume("speaker") == 0.5
                 assert await satellite.dac.set_volume(0.25, "speaker") == 0.25
                 assert await satellite.dac.set_muted(True, "speaker") is True
