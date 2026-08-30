@@ -1,5 +1,6 @@
 """Application commands composed from daemon service capabilities."""
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -156,8 +157,13 @@ class DaemonCommands:
             return {"volume": await dac.get_volume()}
         if method == "dac.set_volume":
             volume = params.get("volume")
-            if not isinstance(volume, (int, float)) or isinstance(volume, bool):
-                raise ValueError("volume must be a number")
+            if (
+                not isinstance(volume, (int, float))
+                or isinstance(volume, bool)
+                or not math.isfinite(volume)
+                or not 0.0 <= volume <= 1.0
+            ):
+                raise ValueError("volume must be a finite number from 0 to 1")
             return {"volume": await dac.set_volume(float(volume), source=audio_source)}
         if method == "dac.set_mute":
             muted = params.get("muted")
