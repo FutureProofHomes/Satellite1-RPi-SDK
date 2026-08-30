@@ -13,7 +13,7 @@ from .commands import DaemonCommands
 from .config import DaemonConfig
 from .contracts.events import DaemonEvent, XmosAvailabilityChanged
 from .events import EventHub
-from .services.audio import LineOutDacService, SpeakerDacService
+from .services.audio import LineOutDacService, SpeakerDacService, VolumeStateStore
 from .services.device_info import DeviceInfo
 from .services.environment import EnvironmentService
 from .services.gpio import ActionButtonService, XmosResetService
@@ -39,11 +39,21 @@ class DaemonRuntime:
         self._lock_path = lock_path
         self._lock_file: TextIO | None = None
         self._gpio_chip = config.gpio.chip
+        self.volume_state = VolumeStateStore()
         self.power = PowerDeliveryService()
         self.environment = EnvironmentService()
-        self.line_out = LineOutDacService(config.line_out.to_sdk(), self.events)
+        self.line_out = LineOutDacService(
+            config.line_out.to_sdk(),
+            self.events,
+            self.volume_state,
+            restore_volume_on_startup=config.line_out.restore_volume_on_startup,
+        )
         self.speaker = SpeakerDacService(
-            config.speaker.to_sdk(), self.power, self.events
+            config.speaker.to_sdk(),
+            self.power,
+            self.events,
+            self.volume_state,
+            restore_volume_on_startup=config.speaker.restore_volume_on_startup,
         )
         self.reset = XmosResetService(self._gpio_chip)
         self.xmos = XmosService(

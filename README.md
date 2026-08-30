@@ -188,6 +188,29 @@ Override with:
 satellite1d --config /path/to/custom.conf
 ```
 
+### Audio Startup Volume
+
+Line-out and speaker volumes are saved independently after each successful
+volume change. On startup, `restore_volume_on_startup = true` restores the last
+saved volume from `/var/lib/satellite1/audio-state.json`. `startup_volume` is
+used on first boot, when restoration is disabled, or when the saved state is
+unavailable or invalid.
+
+`startup_muted` is applied after the selected volume. It controls whether the
+output starts muted; mute state itself is not restored.
+
+```toml
+[line_out]
+startup_volume = 0.5
+startup_muted = false
+restore_volume_on_startup = true
+
+[speaker]
+startup_volume = 1.0
+startup_muted = false
+restore_volume_on_startup = true
+```
+
 ### GPIO Controller
 
 The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default.

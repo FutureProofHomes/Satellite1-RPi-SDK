@@ -25,7 +25,6 @@ class DACConfig:
     enabled: bool = True
     startup_volume: float = 0.5
     startup_muted: bool = False
-    restore_on_startup: bool = True
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.startup_volume <= 1.0:

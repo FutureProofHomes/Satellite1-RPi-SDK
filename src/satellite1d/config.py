@@ -34,7 +34,7 @@ class DacConfig(BaseModel):
         alias="startup-muted",
         description="Un-mute DAC after initialization?",
     )
-    restore_on_startup: bool = True
+    restore_volume_on_startup: bool = True
 
 
 class LineOutDacConfig(DacConfig):
@@ -45,7 +45,6 @@ class LineOutDacConfig(DacConfig):
             enabled=self.enabled,
             startup_volume=self.startup_volume,
             startup_muted=self.startup_muted,
-            restore_on_startup=self.restore_on_startup,
         )
 
 
@@ -60,7 +59,6 @@ class SpeakerDacConfig(DacConfig):
             enabled=self.enabled,
             startup_volume=self.startup_volume,
             startup_muted=self.startup_muted,
-            restore_on_startup=self.restore_on_startup,
             channel=self.channel,
             amp_level=self.amp_level,
         )
