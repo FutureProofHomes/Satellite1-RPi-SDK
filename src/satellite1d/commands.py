@@ -11,6 +11,7 @@ from .contracts.events import (
     MicMuteChanged,
     OutputMuteChanged,
     VolumeChanged,
+    XmosAvailabilityChanged,
 )
 from .contracts.leds import LedColor, LedFrame
 from .services.audio import LineOutDacService, SpeakerDacService
@@ -55,17 +56,45 @@ class DaemonCommands:
         return self._led_ring is not None
 
     async def current_events(self) -> list[DaemonEvent]:
-        return [
-            MicMuteChanged(await self._xmos.get_microphone_mute()),
-            OutputMuteChanged(
-                "speaker",
-                await self._speaker.is_muted(),
-                await self._speaker.get_volume(),
-            ),
-            VolumeChanged("line-out", await self._line_out.get_volume()),
-            VolumeChanged("speaker", await self._speaker.get_volume()),
-            LineOutJackChanged(await self._line_out.is_jack_plugged_in()),
-        ]
+        events: list[DaemonEvent] = [XmosAvailabilityChanged(self._xmos.available)]
+        if self._xmos.available:
+            try:
+                events.append(MicMuteChanged(await self._xmos.get_microphone_mute()))
+            except Exception:
+                pass
+        if self._speaker.available:
+            try:
+                events.append(
+                    OutputMuteChanged(
+                        "speaker",
+                        await self._speaker.is_muted(),
+                        await self._speaker.get_volume(),
+                    )
+                )
+            except Exception:
+                pass
+        if self._line_out.available:
+            try:
+                events.append(
+                    VolumeChanged("line-out", await self._line_out.get_volume())
+                )
+            except Exception:
+                pass
+        if self._speaker.available:
+            try:
+                events.append(
+                    VolumeChanged("speaker", await self._speaker.get_volume())
+                )
+            except Exception:
+                pass
+        if self._line_out.available:
+            try:
+                events.append(
+                    LineOutJackChanged(await self._line_out.is_jack_plugged_in())
+                )
+            except Exception:
+                pass
+        return events
 
     async def dispatch(
         self,

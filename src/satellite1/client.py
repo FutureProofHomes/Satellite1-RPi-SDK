@@ -161,31 +161,48 @@ class AsyncSatellite1Client:
                     )
                     await self._writer.drain()
                     line = await self._reader.readline()
+            except asyncio.CancelledError:
+                await self.close()
+                raise
             except (OSError, TimeoutError) as exc:
+                await self.close()
                 raise Satellite1ConnectionError(
                     f"request to satellite1d failed: {exc}"
                 ) from exc
-        if not line:
-            raise Satellite1ConnectionError(
-                "satellite1d closed the connection without a response"
-            )
-        try:
-            response = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise Satellite1ProtocolError("satellite1d returned invalid JSON") from exc
-        if not isinstance(response, dict) or response.get("id") != request_id:
-            raise Satellite1ProtocolError("satellite1d returned an invalid response")
-        error = response.get("error")
-        if error is not None:
-            if not isinstance(error, dict):
-                raise Satellite1ProtocolError("satellite1d returned an invalid error")
-            raise Satellite1DaemonError(
-                _string(error, "code"), _string(error, "message")
-            )
-        result = response.get("result")
-        if not isinstance(result, dict):
-            raise Satellite1ProtocolError("satellite1d returned an invalid response")
-        return result
+            if not line:
+                await self.close()
+                raise Satellite1ConnectionError(
+                    "satellite1d closed the connection without a response"
+                )
+            try:
+                response = json.loads(line)
+            except json.JSONDecodeError as exc:
+                await self.close()
+                raise Satellite1ProtocolError(
+                    "satellite1d returned invalid JSON"
+                ) from exc
+            if not isinstance(response, dict) or response.get("id") != request_id:
+                await self.close()
+                raise Satellite1ProtocolError(
+                    "satellite1d returned an invalid response"
+                )
+            error = response.get("error")
+            if error is not None:
+                if not isinstance(error, dict):
+                    await self.close()
+                    raise Satellite1ProtocolError(
+                        "satellite1d returned an invalid error"
+                    )
+                raise Satellite1DaemonError(
+                    _string(error, "code"), _string(error, "message")
+                )
+            result = response.get("result")
+            if not isinstance(result, dict):
+                await self.close()
+                raise Satellite1ProtocolError(
+                    "satellite1d returned an invalid response"
+                )
+            return result
 
 
 class _PowerClient:

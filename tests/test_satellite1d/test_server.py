@@ -197,3 +197,44 @@ def test_server_streams_xmos_availability_events_without_disconnect():
             await server.close()
 
     asyncio.run(run())
+
+
+def test_server_subscribes_with_a_degraded_initial_snapshot():
+    class Commands:
+        async def current_events(self):
+            return [XmosAvailabilityChanged(available=False)]
+
+    async def run() -> None:
+        socket_path = _socket_path()
+        events = EventHub()
+        server = UnixSocketAdapter(Commands(), socket_path, events)
+        await server.start()
+        reader, writer = await asyncio.open_unix_connection(socket_path)
+        try:
+            writer.write(
+                json.dumps(
+                    {"id": 1, "method": "events.subscribe", "params": {}}
+                ).encode()
+                + b"\n"
+            )
+            await writer.drain()
+            assert json.loads(await reader.readline()) == {
+                "id": 1,
+                "result": {"subscribed": True},
+            }
+            assert json.loads(await reader.readline()) == {
+                "event": "xmos.availability_changed",
+                "data": {"available": False},
+            }
+
+            events.publish(XmosAvailabilityChanged(available=True))
+            assert json.loads(await reader.readline()) == {
+                "event": "xmos.availability_changed",
+                "data": {"available": True},
+            }
+        finally:
+            writer.close()
+            await writer.wait_closed()
+            await server.close()
+
+    asyncio.run(run())
