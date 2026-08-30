@@ -179,7 +179,7 @@ class LedAnimationController(LedSystemColorController, Protocol):
     async def stop_animation(self, presentation_id: int) -> bool: ...
 
 
-class LedOverlayController(Protocol):
+class LedOverlayController(LedSystemColorController, Protocol):
     """LED operations that manage persistent pixel overlays."""
 
     async def set_overlay(

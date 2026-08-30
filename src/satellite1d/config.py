@@ -183,12 +183,16 @@ class MuteLedWorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
-    mic_muted_color: tuple[int, int, int] = (255, 0, 0)
-    speaker_muted_color: tuple[int, int, int] = (200, 0, 0)
+    mic_muted_color: tuple[int, int, int] | None = None
+    speaker_muted_color: tuple[int, int, int] | None = None
 
     @field_validator("mic_muted_color", "speaker_muted_color")
     @classmethod
-    def validate_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+    def validate_color(
+        cls, color: tuple[int, int, int] | None
+    ) -> tuple[int, int, int] | None:
+        if color is None:
+            return None
         if any(
             not isinstance(channel, int)
             or isinstance(channel, bool)

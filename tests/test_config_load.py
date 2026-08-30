@@ -240,6 +240,8 @@ def test_audio_volume_restoration_defaults_and_can_be_disabled(tmp_path: Path):
     assert default.speaker.restore_volume_on_startup
     assert not default.line_out.startup_muted
     assert not default.speaker.startup_muted
+    assert default.mute_led_workflow.mic_muted_color is None
+    assert default.mute_led_workflow.speaker_muted_color is None
 
     config_path = tmp_path / "conf.toml"
     write_toml(

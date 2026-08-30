@@ -42,8 +42,8 @@ class MuteLedWorkflow:
         speaker: VolumeController,
         led_ring: LedOverlayController,
         *,
-        mic_muted_color: tuple[int, int, int],
-        speaker_muted_color: tuple[int, int, int],
+        mic_muted_color: tuple[int, int, int] | None,
+        speaker_muted_color: tuple[int, int, int] | None,
     ) -> None:
         self._events = events
         self._microphones = microphones
@@ -118,7 +118,11 @@ class MuteLedWorkflow:
         muted = self._hardware_mic_muted or self._lva_mic_software_muted
         if muted:
             await self._led_ring.set_overlay(
-                MIC_OVERLAY, muted_pixels(MIC_MUTED_PIXELS, self._mic_muted_color)
+                MIC_OVERLAY,
+                muted_pixels(
+                    MIC_MUTED_PIXELS,
+                    self._mic_muted_color or self._led_ring.system_color.raw_rgb,
+                ),
             )
         else:
             await self._led_ring.clear_overlay(MIC_OVERLAY)
@@ -148,7 +152,10 @@ class MuteLedWorkflow:
         if muted:
             await self._led_ring.set_overlay(
                 SPEAKER_OVERLAY,
-                muted_pixels(SPEAKER_MUTED_PIXELS, self._speaker_muted_color),
+                muted_pixels(
+                    SPEAKER_MUTED_PIXELS,
+                    self._speaker_muted_color or self._led_ring.system_color.raw_rgb,
+                ),
             )
         else:
             await self._led_ring.clear_overlay(SPEAKER_OVERLAY)
