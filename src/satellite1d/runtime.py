@@ -69,7 +69,9 @@ class DaemonRuntime:
             None
         )
         self._xmos_availability_task: asyncio.Task[None] | None = None
-        renderer = self.xmos if config.led_ring.backend == "xmos" else RpiWs281xRenderer()
+        renderer = (
+            self.xmos if config.led_ring.backend == "xmos" else RpiWs281xRenderer()
+        )
         self.led_ring = (
             LedRingService(
                 renderer,

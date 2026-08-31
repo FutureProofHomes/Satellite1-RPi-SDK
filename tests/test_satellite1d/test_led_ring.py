@@ -127,7 +127,9 @@ def test_xmos_service_renders_serialized_grb_frames():
     asyncio.run(run())
 
 
-def test_ws281x_renderer_sends_a_complete_rgb_frame_to_the_helper(tmp_path, monkeypatch):
+def test_ws281x_renderer_sends_a_complete_rgb_frame_to_the_helper(
+    tmp_path, monkeypatch
+):
     class Process:
         returncode = 0
 
