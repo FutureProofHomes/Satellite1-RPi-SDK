@@ -385,7 +385,11 @@ class LvaAdapter:
 
     async def _apply_led_event(self, lva_event: LvaEvent, message: LvaMessage) -> None:
         led_ring = self._led_ring
-        if lva_event != "light_command" or led_ring is None:
+        if (
+            lva_event != "light_command"
+            or not self._register_led_ring
+            or led_ring is None
+        ):
             return
         data = message.get("data")
         if not isinstance(data, dict):
