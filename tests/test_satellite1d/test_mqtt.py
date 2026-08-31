@@ -10,7 +10,11 @@ import pytest
 from satellite1d.adapters.mqtt import MqttAdapter
 from satellite1d.config import MqttConfig
 from satellite1d.contracts.environment import EnvironmentReadings
-from satellite1d.contracts.events import ButtonPressed, MicMuteChanged
+from satellite1d.contracts.events import (
+    ButtonPressed,
+    LedBackgroundFrameChanged,
+    MicMuteChanged,
+)
 from satellite1d.contracts.leds import LedColor, LedFrame
 from satellite1d.contracts.power import PowerContract
 from satellite1d.events import EventHub
@@ -496,6 +500,42 @@ def test_mqtt_adapter_publishes_button_and_microphone_events():
                 False,
             ),
             ("satellite1/kitchen-satellite/microphone/muted/state", "ON", True),
+        ]
+
+    asyncio.run(run())
+
+
+def test_mqtt_adapter_publishes_led_state_when_the_background_changes():
+    async def run() -> None:
+        client = Client()
+        events = EventHub()
+        led_ring = LedRing()
+        await led_ring.set_background_frame(LedFrame.solid(LedColor((0, 255, 0))))
+        adapter = MqttAdapter(
+            Environment(EnvironmentReadings(21.5, 42.0, 123)),
+            Power(PowerContract(9.0, 2.0)),
+            Xmos("1.2.3"),
+            Xmos("1.2.3"),
+            LineOut(False),
+            led_ring,
+            events,
+            MqttConfig(enabled=True),
+            device_info=DEVICE_INFO,
+            hostname=lambda: "kitchen-satellite",
+        )
+        subscriber = events.subscribe()
+        task = asyncio.create_task(adapter._forward_events(client, subscriber))
+        events.publish(LedBackgroundFrameChanged())
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+        assert client.published == [
+            (
+                "satellite1/kitchen-satellite/led_ring/state",
+                '{"brightness":255,"color":{"b":0,"g":255,"r":0},"state":"ON"}',
+                True,
+            )
         ]
 
     asyncio.run(run())

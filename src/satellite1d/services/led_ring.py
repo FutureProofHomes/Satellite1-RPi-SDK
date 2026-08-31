@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from satellite1d.contracts.events import EventPublisher, LedBackgroundFrameChanged
 from satellite1d.contracts.leds import (
     LedAnimation,
     LedColor,
@@ -38,10 +39,12 @@ class LedRingService:
         self,
         renderer: LedFrameRenderer,
         *,
+        events: EventPublisher | None = None,
         system_color: LedColor | None = None,
         state_path: Path = DEFAULT_SYSTEM_COLOR_STATE_PATH,
     ) -> None:
         self._renderer = renderer
+        self._events = events
         self._system_color = system_color or DEFAULT_SYSTEM_COLOR
         self._restore_system_color = system_color is None
         self._state_path = state_path
@@ -125,6 +128,8 @@ class LedRingService:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")
         self._normal_frame = frame
+        if self._events is not None:
+            self._events.publish(LedBackgroundFrameChanged())
         if self._active_presentation is None:
             self._queue(frame)
 

@@ -75,6 +75,11 @@ class LineOutJackChanged:
 
 
 @dataclass(frozen=True)
+class LedBackgroundFrameChanged:
+    """The persistent LED background frame changed."""
+
+
+@dataclass(frozen=True)
 class XmosAvailabilityChanged:
     available: bool
 
@@ -89,6 +94,7 @@ DaemonEvent: TypeAlias = (
     | OutputMuteChanged
     | VolumeChanged
     | LineOutJackChanged
+    | LedBackgroundFrameChanged
     | XmosAvailabilityChanged
 )
 

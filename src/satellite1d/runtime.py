@@ -69,7 +69,11 @@ class DaemonRuntime:
         )
         self._xmos_availability_task: asyncio.Task[None] | None = None
         self.led_ring = (
-            LedRingService(self.xmos, system_color=config.led_ring.to_system_color())
+            LedRingService(
+                self.xmos,
+                events=self.events,
+                system_color=config.led_ring.to_system_color(),
+            )
             if config.led_ring.enabled
             else None
         )

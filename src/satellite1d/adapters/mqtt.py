@@ -20,6 +20,7 @@ from satellite1d.contracts.events import (
     ButtonPressed,
     DaemonEvent,
     EventSubscriber,
+    LedBackgroundFrameChanged,
     MicMuteChanged,
 )
 from satellite1d.contracts.leds import (
@@ -408,6 +409,8 @@ class MqttAdapter:
             elif isinstance(event, MicMuteChanged):
                 async with self._microphone_state_lock:
                     await self._publish_microphone_mute_value(client, event.muted)
+            elif isinstance(event, LedBackgroundFrameChanged):
+                await self._publish_led_state(client)
 
     async def _publish_microphone_mute_value(
         self, client: MqttPublisher, muted: bool | None
