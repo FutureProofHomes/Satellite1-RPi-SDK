@@ -70,7 +70,7 @@ void *unmapmem(void *addr, uint32_t size) {
     uint32_t pagemask = ~0UL ^ (getpagesize() - 1);
     uintptr_t baseaddr = (uintptr_t)addr & pagemask;
     int s;
-    
+
     s = munmap((void *)baseaddr, size);
     if (s != 0) {
         perror("munmap error\n");
@@ -190,7 +190,7 @@ uint32_t mem_unlock(int file_desc, uint32_t handle) {
    return p[5];
 }
 
-uint32_t execute_code(int file_desc, uint32_t code, uint32_t r0, uint32_t r1, 
+uint32_t execute_code(int file_desc, uint32_t code, uint32_t r0, uint32_t r1,
                       uint32_t r2, uint32_t r3, uint32_t r4, uint32_t r5) {
     int i=0;
     uint32_t p[32];

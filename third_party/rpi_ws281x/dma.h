@@ -15,7 +15,7 @@
  *         provided with the distribution.
  *     3.  Neither the name of the owner nor the names of its contributors may be used to endorse
  *         or promote products derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
  * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
@@ -59,7 +59,7 @@ typedef struct
 #define RPI_DMA_CS_ABORT                         (1 << 30)
 #define RPI_DMA_CS_DISDEBUG                      (1 << 29)
 #define RPI_DMA_CS_WAIT_OUTSTANDING_WRITES       (1 << 28)
-#define RPI_DMA_CS_PANIC_PRIORITY(val)           ((val & 0xf) << 20)                
+#define RPI_DMA_CS_PANIC_PRIORITY(val)           ((val & 0xf) << 20)
 #define RPI_DMA_CS_PRIORITY(val)                 ((val & 0xf) << 16)
 #define RPI_DMA_CS_ERROR                         (1 << 8)
 #define RPI_DMA_CS_WAITING_OUTSTANDING_WRITES    (1 << 6)
