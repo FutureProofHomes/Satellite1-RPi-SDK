@@ -16,6 +16,8 @@ BUILD_VENV   := $(CURDIR)/debian/.build-venv
 WHEELHOUSE   := $(CURDIR)/debian/.wheelhouse
 VERIFY_VENV  := $(CURDIR)/debian/.verify-venv
 LOCKED_REQUIREMENTS := $(CURDIR)/debian/.daemon-requirements.txt
+NATIVE_BUILD := $(CURDIR)/debian/.native-build
+NATIVE_HELPER := $(NATIVE_BUILD)/satellite1-ws281x-render
 PRJ_ROOT     := /project
 TARGET_PYTHON := /usr/bin/python3
 
@@ -24,13 +26,14 @@ TARGET_PYTHON := /usr/bin/python3
 	dh $@ --with python3
 
 
-# (No arch-specific build/install yet)
 override_dh_auto_build-arch:
 	# Fresh build venv
-	rm -rf $(BUILD_VENV) $(VERIFY_VENV) $(LOCKED_REQUIREMENTS)
+	rm -rf $(BUILD_VENV) $(VERIFY_VENV) $(LOCKED_REQUIREMENTS) $(NATIVE_BUILD)
 	$(TARGET_PYTHON) -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version'
 	$(TARGET_PYTHON) -m venv $(BUILD_VENV)
 	$(BUILD_VENV)/bin/pip install --requirement $(PRJ_ROOT)/debian/build-requirements.txt
+	mkdir -p $(NATIVE_BUILD)
+	$(MAKE) -C $(PRJ_ROOT)/native OUTPUT=$(NATIVE_HELPER)
 
 	# Build a complete wheelhouse including the daemon extra used by the package service.
 	# setuptools reuses this directory and otherwise can retain removed Python modules.
@@ -53,12 +56,13 @@ override_dh_auto_install-arch:
 	for pkg in $(shell dh_listpackages); do \
 	  install -d debian/$$pkg/usr/share/satellite1/wheels ; \
 	  cp -a $(WHEELHOUSE)/*.whl debian/$$pkg/usr/share/satellite1/wheels/ ; \
+	  install -D -m 0750 $(NATIVE_HELPER) debian/$$pkg/usr/lib/satellite1/satellite1-ws281x-render ; \
 	done
 
 
 # Keep the tree clean between builds
 override_dh_auto_clean:
-	rm -rf $(BUILD_VENV) $(VERIFY_VENV) $(WHEELHOUSE) $(LOCKED_REQUIREMENTS)
+	rm -rf $(BUILD_VENV) $(VERIFY_VENV) $(WHEELHOUSE) $(LOCKED_REQUIREMENTS) $(NATIVE_BUILD)
 
 # Don’t start the unit at install time (it will still be enabled)
 override_dh_installsystemd:

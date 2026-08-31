@@ -113,6 +113,26 @@ def test_runtime_creates_lva_without_an_led_ring(tmp_path):
     assert runtime.voice_pipeline_led is None
 
 
+def test_runtime_creates_an_enabled_direct_ws281x_led_ring(tmp_path):
+    config = DaemonConfig(
+        line_out=LineOutDacConfig(),
+        speaker=SpeakerDacConfig(),
+        gpio=GpioConfig(),
+        buttons=ButtonsConfig(),
+        buttons_evdev=ButtonEvdevConfig(),
+        volume_buttons_workflow=VolumeButtonsWorkflowConfig(),
+        jack_led_workflow=JackLedWorkflowConfig(),
+        mute_led_workflow=MuteLedWorkflowConfig(),
+        led_ring=LedRingConfig(enabled=True, backend="rpi-ws281x"),
+    )
+
+    with patch("satellite1d.runtime.RpiWs281xRenderer") as renderer:
+        runtime = DaemonRuntime(config, lock_path=tmp_path / "hardware.lock")
+
+    assert runtime.led_ring is not None
+    assert runtime.led_ring._renderer is renderer.return_value
+
+
 def test_runtime_stops_audio_when_xmos_is_unavailable_and_restarts_it_after_recovery(
     tmp_path,
 ):

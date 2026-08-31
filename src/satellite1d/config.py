@@ -204,13 +204,13 @@ class MuteLedWorkflowConfig(BaseModel):
 
 
 class LedRingConfig(BaseModel):
-    """Optional XMOS-controlled 24-pixel LED ring."""
+    """Optional 24-pixel LED ring renderer."""
 
     CONF_GROUPS: ClassVar[tuple[str, ...]] = ("led_ring", "led-ring")
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
-    backend: Literal["xmos"] = "xmos"
+    backend: Literal["xmos", "rpi-ws281x"] = "xmos"
     system_color: tuple[int, int, int] | None = None
 
     @field_validator("system_color")

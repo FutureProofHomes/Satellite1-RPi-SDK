@@ -20,6 +20,7 @@ Depends:
   python3-venv,
   python3-pip,
   flashrom,
+  libcap2-bin,
   libgpiod3
 Description: Satellite1 hardware daemon and command-line client
  Installs Satellite1 hardware configuration, a persistent least-privilege
