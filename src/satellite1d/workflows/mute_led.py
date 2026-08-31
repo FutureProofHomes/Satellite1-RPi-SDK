@@ -121,7 +121,9 @@ class MuteLedWorkflow:
                 MIC_OVERLAY,
                 muted_pixels(
                     MIC_MUTED_PIXELS,
-                    self._mic_muted_color or self._led_ring.system_color.raw_rgb,
+                    self._mic_muted_color
+                    if self._mic_muted_color is not None
+                    else self._led_ring.system_color.raw_rgb,
                 ),
             )
         else:
@@ -154,7 +156,9 @@ class MuteLedWorkflow:
                 SPEAKER_OVERLAY,
                 muted_pixels(
                     SPEAKER_MUTED_PIXELS,
-                    self._speaker_muted_color or self._led_ring.system_color.raw_rgb,
+                    self._speaker_muted_color
+                    if self._speaker_muted_color is not None
+                    else self._led_ring.system_color.raw_rgb,
                 ),
             )
         else:
