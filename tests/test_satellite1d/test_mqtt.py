@@ -10,15 +10,12 @@ import pytest
 from satellite1d.adapters.mqtt import MqttAdapter
 from satellite1d.config import MqttConfig
 from satellite1d.contracts.environment import EnvironmentReadings
-from satellite1d.contracts.events import (
-    ButtonPressed,
-    LedBackgroundFrameChanged,
-    MicMuteChanged,
-)
+from satellite1d.contracts.events import ButtonPressed, MicMuteChanged
 from satellite1d.contracts.leds import LedColor, LedFrame
 from satellite1d.contracts.power import PowerContract
 from satellite1d.events import EventHub
 from satellite1d.services.device_info import DeviceInfo
+from satellite1d.services.led_ring import LedRingService
 
 DEVICE_INFO = DeviceInfo("test-version", "Test hardware")
 
@@ -505,12 +502,19 @@ def test_mqtt_adapter_publishes_button_and_microphone_events():
     asyncio.run(run())
 
 
-def test_mqtt_adapter_publishes_led_state_when_the_background_changes():
+def test_mqtt_led_command_publishes_state_once_via_background_change_event(tmp_path):
+    class Renderer:
+        available = True
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            pass
+
     async def run() -> None:
         client = Client()
         events = EventHub()
-        led_ring = LedRing()
-        await led_ring.set_background_frame(LedFrame.solid(LedColor((0, 255, 0))))
+        led_ring = LedRingService(
+            Renderer(), events=events, state_path=tmp_path / "led-state.json"
+        )
         adapter = MqttAdapter(
             Environment(EnvironmentReadings(21.5, 42.0, 123)),
             Power(PowerContract(9.0, 2.0)),
@@ -525,10 +529,15 @@ def test_mqtt_adapter_publishes_led_state_when_the_background_changes():
         )
         subscriber = events.subscribe()
         task = asyncio.create_task(adapter._forward_events(client, subscriber))
-        events.publish(LedBackgroundFrameChanged())
+        await led_ring.start()
+        await adapter._handle_led_command(
+            client,
+            b'{"state":"ON","color":{"r":0,"g":255,"b":0}}',
+        )
         await asyncio.sleep(0)
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        await led_ring.close()
 
         assert client.published == [
             (

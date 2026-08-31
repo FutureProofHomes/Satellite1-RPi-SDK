@@ -427,7 +427,6 @@ class MqttAdapter:
             return
         try:
             await self._apply_led_command(command)
-            await self._publish_led_state(client)
         except Exception:
             log.warning("applying MQTT LED ring command failed", exc_info=True)
 
