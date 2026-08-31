@@ -160,6 +160,9 @@ class LedBackgroundController(LedSystemColorController, Protocol):
     @property
     def background_frame(self) -> LedFrame: ...
 
+    @property
+    def background_frame_is_set(self) -> bool: ...
+
     async def set_background_frame(self, frame: LedFrame) -> None: ...
 
     async def clear(self) -> None: ...
@@ -179,7 +182,7 @@ class LedAnimationController(LedSystemColorController, Protocol):
     async def stop_animation(self, presentation_id: int) -> bool: ...
 
 
-class LedOverlayController(Protocol):
+class LedOverlayController(LedSystemColorController, Protocol):
     """LED operations that manage persistent pixel overlays."""
 
     async def set_overlay(

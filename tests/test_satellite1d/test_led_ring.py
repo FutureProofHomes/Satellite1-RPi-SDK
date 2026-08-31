@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from satellite1d.contracts.events import LedBackgroundFrameChanged
 from satellite1d.contracts.leds import (
     LED_RING_PIXEL_COUNT,
     LedAnimation,
@@ -9,6 +10,7 @@ from satellite1d.contracts.leds import (
     LedFrame,
     LedRingUnavailableError,
 )
+from satellite1d.events import EventHub
 from satellite1d.services.led_ring import LedRingService
 from satellite1d.services.xmos import XmosService
 
@@ -172,6 +174,73 @@ def test_led_ring_system_color_persists_effective_rgb(tmp_path):
         await restored.start()
         assert restored.system_color.raw_rgb == (50, 40, 30)
         await restored.close()
+
+    asyncio.run(run())
+
+
+def test_led_ring_reports_when_its_background_frame_is_set():
+    class Renderer:
+        available = True
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            pass
+
+    async def run() -> None:
+        service = LedRingService(Renderer())
+        await service.start()
+        assert not service.background_frame_is_set
+
+        await service.set_background_frame(LedFrame.solid(LedColor((1, 2, 3))))
+        assert service.background_frame_is_set
+
+        await service.clear()
+        assert not service.background_frame_is_set
+        await service.close()
+
+    asyncio.run(run())
+
+
+def test_led_ring_publishes_background_frame_changes():
+    class Renderer:
+        available = True
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            pass
+
+    async def run() -> None:
+        events = EventHub()
+        subscriber = events.subscribe()
+        service = LedRingService(Renderer(), events=events)
+        await service.start()
+
+        await service.set_background_frame(LedFrame.solid(LedColor((1, 2, 3))))
+        assert subscriber.get_nowait() == LedBackgroundFrameChanged()
+        await service.close()
+        events.unsubscribe(subscriber)
+
+    asyncio.run(run())
+
+
+def test_led_ring_configured_system_color_overrides_saved_state(tmp_path):
+    class Renderer:
+        available = True
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            pass
+
+    async def run() -> None:
+        state_path = tmp_path / "led-ring-color.json"
+        saved = LedRingService(Renderer(), state_path=state_path)
+        await saved.start()
+        await saved.set_system_color(LedColor((100, 80, 60)))
+        await saved.close()
+
+        configured = LedRingService(
+            Renderer(), system_color=LedColor((10, 20, 30)), state_path=state_path
+        )
+        await configured.start()
+        assert configured.system_color.raw_rgb == (10, 20, 30)
+        await configured.close()
 
     asyncio.run(run())
 

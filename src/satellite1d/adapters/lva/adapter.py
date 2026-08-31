@@ -81,10 +81,12 @@ class LvaAdapter:
         line_out_jack: LineOutJackReader,
         line_out: VolumeController,
         speaker: VolumeController,
-        led_ring: LedBackgroundController,
+        led_ring: LedBackgroundController | None,
         *,
         url: str = DEFAULT_URL,
         reconnect_delay: float = DEFAULT_RECONNECT_DELAY,
+        update_system_color: bool = True,
+        register_led_ring: bool = True,
     ) -> None:
         self._events = events
         self._line_out_jack = line_out_jack
@@ -93,6 +95,8 @@ class LvaAdapter:
         self._led_ring = led_ring
         self._url = url
         self._reconnect_delay = reconnect_delay
+        self._update_system_color = update_system_color
+        self._register_led_ring = register_led_ring
         self._actions: asyncio.Queue[LvaCommand] = asyncio.Queue(maxsize=32)
         self._pending_mic_command: LvaCommand | None = None
         self._pending_volume_command: LvaCommand | None = None
@@ -208,7 +212,8 @@ class LvaAdapter:
             await asyncio.sleep(self._reconnect_delay)
 
     async def _run_connection(self, websocket: ClientConnection) -> None:
-        await websocket.send(json.dumps(_register_led_ring_light_command()))
+        if self._register_led_ring and self._led_ring is not None:
+            await websocket.send(json.dumps(_register_led_ring_light_command()))
         self._transport_active = True
         try:
             receive_task = asyncio.create_task(self._receive_events(websocket))
@@ -379,7 +384,12 @@ class LvaAdapter:
             log.warning("applying LVA audio event failed", exc_info=True)
 
     async def _apply_led_event(self, lva_event: LvaEvent, message: LvaMessage) -> None:
-        if lva_event != "light_command":
+        led_ring = self._led_ring
+        if (
+            lva_event != "light_command"
+            or not self._register_led_ring
+            or led_ring is None
+        ):
             return
         data = message.get("data")
         if not isinstance(data, dict):
@@ -393,11 +403,12 @@ class LvaAdapter:
             return
         try:
             if not command.state:
-                await self._led_ring.clear()
+                await led_ring.clear()
                 return
             assert command.color is not None
-            await self._led_ring.set_system_color(command.color)
-            await self._led_ring.set_background_frame(LedFrame.solid(command.color))
+            if self._update_system_color:
+                await led_ring.set_system_color(command.color)
+            await led_ring.set_background_frame(LedFrame.solid(command.color))
         except Exception:
             log.warning("applying LVA light command failed", exc_info=True)
 

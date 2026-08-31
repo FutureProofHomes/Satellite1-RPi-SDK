@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from satellite1d.contracts.events import EventPublisher, LedBackgroundFrameChanged
 from satellite1d.contracts.leds import (
     LedAnimation,
     LedColor,
@@ -38,11 +39,14 @@ class LedRingService:
         self,
         renderer: LedFrameRenderer,
         *,
-        system_color: LedColor = DEFAULT_SYSTEM_COLOR,
+        events: EventPublisher | None = None,
+        system_color: LedColor | None = None,
         state_path: Path = DEFAULT_SYSTEM_COLOR_STATE_PATH,
     ) -> None:
         self._renderer = renderer
-        self._system_color = system_color
+        self._events = events
+        self._system_color = system_color or DEFAULT_SYSTEM_COLOR
+        self._restore_system_color = system_color is None
         self._state_path = state_path
         self._normal_frame = LedFrame.clear()
         self._active_frame = self._normal_frame
@@ -57,7 +61,8 @@ class LedRingService:
     # DaemonService
 
     async def start(self) -> None:
-        self._load_system_color()
+        if self._restore_system_color:
+            self._load_system_color()
         if self._task is None:
             self._task = asyncio.create_task(
                 self._render_pending_frames(), name="satellite1d-led-ring"
@@ -109,6 +114,10 @@ class LedRingService:
     def background_frame(self) -> LedFrame:
         return self._normal_frame
 
+    @property
+    def background_frame_is_set(self) -> bool:
+        return any(channel for pixel in self._normal_frame.pixels for channel in pixel)
+
     async def set_system_color(self, color: LedColor) -> None:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")
@@ -119,6 +128,8 @@ class LedRingService:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")
         self._normal_frame = frame
+        if self._events is not None:
+            self._events.publish(LedBackgroundFrameChanged())
         if self._active_presentation is None:
             self._queue(frame)
 

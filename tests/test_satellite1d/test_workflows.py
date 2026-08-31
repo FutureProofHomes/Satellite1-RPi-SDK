@@ -153,6 +153,7 @@ def test_mute_led_workflow_sets_and_clears_transparent_overlays():
     class LedRing:
         def __init__(self) -> None:
             self.overlays = {}
+            self.system_color = LedColor((0, 90, 255))
 
         async def set_overlay(self, name, pixels) -> None:
             self.overlays[name] = pixels
@@ -226,6 +227,56 @@ def test_mute_led_workflow_sets_and_clears_transparent_overlays():
             await task
         except asyncio.CancelledError:
             pass
+
+    asyncio.run(run())
+
+
+def test_mute_led_workflow_uses_configured_or_system_colors():
+    class LedRing:
+        def __init__(self) -> None:
+            self.overlays = {}
+            self.system_color = LedColor((10, 20, 30))
+
+        async def set_overlay(self, name, pixels) -> None:
+            self.overlays[name] = pixels
+
+        async def clear_overlay(self, name) -> None:
+            self.overlays.pop(name, None)
+
+    async def run() -> None:
+        led_ring = LedRing()
+        workflow = MuteLedWorkflow(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            led_ring,
+            mic_muted_color=None,
+            speaker_muted_color=None,
+        )
+
+        await workflow._set_hardware_microphone_muted(True)
+        await workflow._set_output_muted(True)
+
+        assert set(led_ring.overlays["microphone-muted"].values()) == {(10, 20, 30)}
+        assert set(led_ring.overlays["speaker-muted"].values()) == {(10, 20, 30)}
+
+        workflow = MuteLedWorkflow(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            led_ring,
+            mic_muted_color=(0, 0, 0),
+            speaker_muted_color=(0, 0, 0),
+        )
+        await workflow._set_hardware_microphone_muted(True)
+        await workflow._set_output_muted(True)
+
+        assert set(led_ring.overlays["microphone-muted"].values()) == {(0, 0, 0)}
+        assert set(led_ring.overlays["speaker-muted"].values()) == {(0, 0, 0)}
 
     asyncio.run(run())
 

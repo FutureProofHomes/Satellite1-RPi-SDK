@@ -22,7 +22,6 @@ TAS2780_I2C_ADDR = 0x3F
 class DACConfig:
     """Shared startup configuration for an audio output DAC."""
 
-    enabled: bool = True
     startup_volume: float = 0.5
     startup_muted: bool = False
 
@@ -45,7 +44,6 @@ class LineOutDac(PCM5122):
     def from_cfg(cls, config: DACConfig) -> Self:
         """Create the board-specific line-out DAC from startup settings."""
         dac_config = PCM5122Config(
-            enabled=config.enabled,
             i2c_bus=1,
             i2c_addr=PCM5122_I2C_ADDR,
             gpio=[
@@ -102,7 +100,6 @@ class SpeakerDac(TAS2780):
         tas_config = TAS2780Config(
             i2c_bus=1,
             i2c_addr=TAS2780_I2C_ADDR,
-            enabled=config.enabled,
             volume=config.startup_volume,
             muted=config.startup_muted,
             power_mode=power_mode,
@@ -126,13 +123,11 @@ def get_speaker_dac(config: SpeakerDacConfig) -> SpeakerDac:
     return SpeakerDac.from_cfg(config, dac_power_mode)
 
 
-def get_active_dac_id(pcm5122: LineOutDac, tas2780: SpeakerDac) -> DacStr | None:
-    """Return the output currently selected by jack presence and availability."""
-    if pcm5122.enabled and pcm5122.plugged_in:
+def get_active_dac_id(pcm5122: LineOutDac, _speaker: SpeakerDac) -> DacStr:
+    """Return line-out when its jack is present, otherwise the speaker."""
+    if pcm5122.plugged_in:
         return "line-out"
-    if tas2780.enabled:
-        return "speaker"
-    return None
+    return "speaker"
 
 
 def setup_dacs(pcm5122: LineOutDac, tas2780: SpeakerDac):

@@ -22,7 +22,6 @@ AudioCh: TypeAlias = Literal["left", "right", "dwn_mix"]
 class TAS2780Config(I2cDeviceConfig):
     """Startup configuration for a TAS2780 speaker amplifier."""
 
-    enabled: bool = True
     volume: float = 0.7
     muted: bool = False
     power_mode: PwrMode = 0
@@ -55,11 +54,6 @@ class TAS2780:
         self._channel: AudioCh = config.channel
         self._amp_level: int = config.amp_level
 
-    @property
-    def enabled(self) -> bool:
-        """Return whether the amplifier is enabled by configuration."""
-        return self.config.enabled
-
     def setup(self) -> None:
         """Initialize the chip: probe, soft-reset, configure I2S, start muted."""
         log.info(
@@ -75,8 +69,7 @@ class TAS2780:
         self._write_channel()
         self._write_mute()
 
-        if self.enabled:
-            self.activate()
+        self.activate()
 
         log.info("TAS5805M setup complete (muted).")
 

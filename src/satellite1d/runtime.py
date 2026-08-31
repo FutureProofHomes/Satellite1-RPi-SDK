@@ -69,15 +69,15 @@ class DaemonRuntime:
         )
         self._xmos_availability_task: asyncio.Task[None] | None = None
         self.led_ring = (
-            LedRingService(self.xmos, system_color=config.led_ring.to_system_color())
+            LedRingService(
+                self.xmos,
+                events=self.events,
+                system_color=config.led_ring.to_system_color(),
+            )
             if config.led_ring.enabled
             else None
         )
-        if config.lva.enabled and self.led_ring is None:
-            raise ValueError("LVA integration requires the LED ring to be enabled")
         led_ring = self.led_ring
-        if config.lva.enabled:
-            assert led_ring is not None
         self.volume_buttons = (
             VolumeButtonWorkflow(
                 self.events,
@@ -93,11 +93,11 @@ class DaemonRuntime:
             VolumeLedWorkflow(
                 self.events,
                 self.led_ring,
-                color=config.volume_buttons_workflow.led_color,
-                muted_color=config.volume_buttons_workflow.led_muted_color,
-                timeout=config.volume_buttons_workflow.led_timeout,
+                color=config.volume_workflow.color,
+                muted_color=config.volume_workflow.muted_color,
+                timeout=config.volume_workflow.timeout,
             )
-            if config.volume_buttons_workflow.led_enabled and self.led_ring is not None
+            if config.volume_workflow.enabled and self.led_ring is not None
             else None
         )
         self.jack_led = (
@@ -128,22 +128,24 @@ class DaemonRuntime:
         self.voice_pipeline_led: VoicePipelineLedWorkflow | None = None
         self.lva: LvaAdapter | None = None
         self.mqtt: MqttAdapter | None = None
-        if config.lva.enabled:
-            assert led_ring is not None
+        if config.lva.enabled and led_ring is not None:
             self.timer_led = TimerLedWorkflow(
                 self.events,
                 led_ring,
                 max_ring_seconds=config.lva.timer_max_ring_seconds,
             )
             self.voice_pipeline_led = VoicePipelineLedWorkflow(self.events, led_ring)
+        if config.lva.enabled:
             self.lva = LvaAdapter(
                 self.events,
                 self.line_out,
                 self.line_out,
                 self.speaker,
-                led_ring,
+                self.led_ring,
                 url=config.lva.url,
                 reconnect_delay=config.lva.reconnect_delay,
+                update_system_color=config.led_ring.system_color is None,
+                register_led_ring=config.lva.register_led_ring,
             )
         if config.mqtt.enabled:
             self.mqtt = MqttAdapter(
@@ -156,6 +158,7 @@ class DaemonRuntime:
                 self.events,
                 config.mqtt,
                 device_info=self.device_info,
+                update_system_color=config.led_ring.system_color is None,
             )
         self.commands = DaemonCommands(
             self.power,

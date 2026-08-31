@@ -21,7 +21,6 @@ from .contracts.leds import LedColor
 class DacConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    enabled: bool = True
     startup_volume: float = Field(
         0.5,
         ge=0.0,
@@ -42,7 +41,6 @@ class LineOutDacConfig(DacConfig):
 
     def to_sdk(self) -> SdkLineOutDacConfig:
         return SdkLineOutDacConfig(
-            enabled=self.enabled,
             startup_volume=self.startup_volume,
             startup_muted=self.startup_muted,
         )
@@ -56,7 +54,6 @@ class SpeakerDacConfig(DacConfig):
 
     def to_sdk(self) -> SdkSpeakerDacConfig:
         return SdkSpeakerDacConfig(
-            enabled=self.enabled,
             startup_volume=self.startup_volume,
             startup_muted=self.startup_muted,
             channel=self.channel,
@@ -113,14 +110,25 @@ class VolumeButtonsWorkflowConfig(BaseModel):
 
     enabled: bool = False
     step: float = Field(0.05, gt=0.0, le=1.0)
-    led_enabled: bool = False
-    led_color: tuple[int, int, int] | None = None
-    led_muted_color: tuple[int, int, int] = (255, 0, 0)
-    led_timeout: float = Field(1.5, gt=0.0)
 
-    @field_validator("led_color", "led_muted_color")
+
+class VolumeWorkflowConfig(BaseModel):
+    """Optional LED feedback for output volume changes."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = (
+        "workflows.volume",
+        "workflows.volume_led",
+    )
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    color: tuple[int, int, int] | None = None
+    muted_color: tuple[int, int, int] = (255, 0, 0)
+    timeout: float = Field(1.5, gt=0.0)
+
+    @field_validator("color", "muted_color")
     @classmethod
-    def validate_led_color(
+    def validate_color(
         cls, color: tuple[int, int, int] | None
     ) -> tuple[int, int, int] | None:
         if color is None:
@@ -175,12 +183,16 @@ class MuteLedWorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
-    mic_muted_color: tuple[int, int, int] = (255, 0, 0)
-    speaker_muted_color: tuple[int, int, int] = (200, 0, 0)
+    mic_muted_color: tuple[int, int, int] | None = None
+    speaker_muted_color: tuple[int, int, int] | None = None
 
     @field_validator("mic_muted_color", "speaker_muted_color")
     @classmethod
-    def validate_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+    def validate_color(
+        cls, color: tuple[int, int, int] | None
+    ) -> tuple[int, int, int] | None:
+        if color is None:
+            return None
         if any(
             not isinstance(channel, int)
             or isinstance(channel, bool)
@@ -199,16 +211,20 @@ class LedRingConfig(BaseModel):
 
     enabled: bool = False
     backend: Literal["xmos"] = "xmos"
-    system_color: tuple[int, int, int] = (0, 90, 255)
+    system_color: tuple[int, int, int] | None = None
 
     @field_validator("system_color")
     @classmethod
-    def validate_system_color(cls, color: tuple[int, int, int]) -> tuple[int, int, int]:
+    def validate_system_color(
+        cls, color: tuple[int, int, int] | None
+    ) -> tuple[int, int, int] | None:
+        if color is None:
+            return None
         LedColor(color)
         return color
 
-    def to_system_color(self) -> LedColor:
-        return LedColor(self.system_color)
+    def to_system_color(self) -> LedColor | None:
+        return LedColor(self.system_color) if self.system_color is not None else None
 
 
 class LvaConfig(BaseModel):
@@ -221,6 +237,7 @@ class LvaConfig(BaseModel):
     url: str = "ws://127.0.0.1:6055"
     reconnect_delay: float = Field(3.0, gt=0.0)
     timer_max_ring_seconds: float = Field(900.0, gt=0.0)
+    register_led_ring: bool = True
 
     @field_validator("url")
     @classmethod
@@ -269,6 +286,15 @@ class MqttConfig(BaseModel):
         return value
 
 
+class LoggingConfig(BaseModel):
+    """Daemon log threshold for the systemd journal."""
+
+    CONF_GROUPS: ClassVar[tuple[str, ...]] = ("logging",)
+    model_config = ConfigDict(extra="forbid")
+
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+
 def _validate_mqtt_string(value: str) -> None:
     if any(
         category(character) == "Cc"
@@ -293,6 +319,9 @@ class DaemonConfig:
     jack_led_workflow: JackLedWorkflowConfig
     mute_led_workflow: MuteLedWorkflowConfig
     led_ring: LedRingConfig
+    volume_workflow: VolumeWorkflowConfig = field(
+        default_factory=lambda: VolumeWorkflowConfig(timeout=1.5)
+    )
     lva: LvaConfig = field(
         default_factory=lambda: LvaConfig(
             reconnect_delay=3.0,
@@ -304,6 +333,7 @@ class DaemonConfig:
             port=1883, publish_interval=60.0, reconnect_delay=3.0
         )
     )
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
 
 
 def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
@@ -316,6 +346,7 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         volume_buttons_workflow=load_from_toml(
             VolumeButtonsWorkflowConfig, config_path=config_path
         ),
+        volume_workflow=load_from_toml(VolumeWorkflowConfig, config_path=config_path),
         jack_led_workflow=load_from_toml(
             JackLedWorkflowConfig, config_path=config_path
         ),
@@ -325,4 +356,5 @@ def load_daemon_config(config_path: Path | None = None) -> DaemonConfig:
         led_ring=load_from_toml(LedRingConfig, config_path=config_path),
         lva=load_from_toml(LvaConfig, config_path=config_path),
         mqtt=load_from_toml(MqttConfig, config_path=config_path),
+        logging=load_from_toml(LoggingConfig, config_path=config_path),
     )

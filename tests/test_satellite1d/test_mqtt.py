@@ -15,6 +15,7 @@ from satellite1d.contracts.leds import LedColor, LedFrame
 from satellite1d.contracts.power import PowerContract
 from satellite1d.events import EventHub
 from satellite1d.services.device_info import DeviceInfo
+from satellite1d.services.led_ring import LedRingService
 
 DEVICE_INFO = DeviceInfo("test-version", "Test hardware")
 
@@ -67,6 +68,12 @@ class LedRing:
         self.background_frame = LedFrame.clear()
         self.background_frames: list[LedFrame] = []
         self.cleared = 0
+
+    @property
+    def background_frame_is_set(self) -> bool:
+        return any(
+            channel for pixel in self.background_frame.pixels for channel in pixel
+        )
 
     async def set_system_color(self, color: LedColor) -> None:
         self.system_color = color
@@ -377,6 +384,7 @@ def test_mqtt_adapter_controls_led_ring_with_json_light_commands():
         assert led_ring.background_frames == [
             LedFrame.solid(LedColor((255, 0, 0), 128))
         ]
+        assert led_ring.system_color.raw_rgb == (128, 0, 0)
         assert client.published[-1] == (
             "satellite1/kitchen-satellite/led_ring/state",
             '{"brightness":128,"color":{"b":0,"g":0,"r":255},"state":"ON"}',
@@ -387,6 +395,36 @@ def test_mqtt_adapter_controls_led_ring_with_json_light_commands():
         assert off == (False, None)
         await adapter._apply_led_command(off)
         assert led_ring.cleared == 1
+
+    asyncio.run(run())
+
+
+def test_mqtt_adapter_does_not_change_a_configured_system_color():
+    async def run() -> None:
+        led_ring = LedRing()
+        adapter = MqttAdapter(
+            Environment(EnvironmentReadings(21.5, 42.0, 123)),
+            Power(PowerContract(9.0, 2.0)),
+            Xmos("1.2.3"),
+            Xmos("1.2.3"),
+            LineOut(False),
+            led_ring,
+            EventHub(),
+            MqttConfig(enabled=True),
+            device_info=DEVICE_INFO,
+            update_system_color=False,
+        )
+
+        command = adapter._parse_led_command(
+            b'{"state":"ON","color":{"r":255,"g":0,"b":0},"brightness":128}'
+        )
+        assert command is not None
+        await adapter._apply_led_command(command)
+
+        assert led_ring.system_color.raw_rgb == (0, 90, 255)
+        assert led_ring.background_frames == [
+            LedFrame.solid(LedColor((255, 0, 0), 128))
+        ]
 
     asyncio.run(run())
 
@@ -414,6 +452,14 @@ def test_mqtt_adapter_publishes_led_state_from_shared_background_frame():
         assert client.published[-1] == (
             "satellite1/kitchen-satellite/led_ring/state",
             '{"brightness":64,"color":{"b":0,"g":255,"r":0},"state":"ON"}',
+            True,
+        )
+
+        await led_ring.clear()
+        await adapter._publish_led_state(client)
+        assert client.published[-1] == (
+            "satellite1/kitchen-satellite/led_ring/state",
+            '{"state":"OFF"}',
             True,
         )
 
@@ -451,6 +497,54 @@ def test_mqtt_adapter_publishes_button_and_microphone_events():
                 False,
             ),
             ("satellite1/kitchen-satellite/microphone/muted/state", "ON", True),
+        ]
+
+    asyncio.run(run())
+
+
+def test_mqtt_led_command_publishes_state_once_via_background_change_event(tmp_path):
+    class Renderer:
+        available = True
+
+        async def render_led_frame(self, frame: LedFrame) -> None:
+            pass
+
+    async def run() -> None:
+        client = Client()
+        events = EventHub()
+        led_ring = LedRingService(
+            Renderer(), events=events, state_path=tmp_path / "led-state.json"
+        )
+        adapter = MqttAdapter(
+            Environment(EnvironmentReadings(21.5, 42.0, 123)),
+            Power(PowerContract(9.0, 2.0)),
+            Xmos("1.2.3"),
+            Xmos("1.2.3"),
+            LineOut(False),
+            led_ring,
+            events,
+            MqttConfig(enabled=True),
+            device_info=DEVICE_INFO,
+            hostname=lambda: "kitchen-satellite",
+        )
+        subscriber = events.subscribe()
+        task = asyncio.create_task(adapter._forward_events(client, subscriber))
+        await led_ring.start()
+        await adapter._handle_led_command(
+            client,
+            b'{"state":"ON","color":{"r":0,"g":255,"b":0}}',
+        )
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        await led_ring.close()
+
+        assert client.published == [
+            (
+                "satellite1/kitchen-satellite/led_ring/state",
+                '{"brightness":255,"color":{"b":0,"g":255,"r":0},"state":"ON"}',
+                True,
+            )
         ]
 
     asyncio.run(run())

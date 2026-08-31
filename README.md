@@ -165,10 +165,10 @@ sat1 led set-system-color 0 90 255
 sat1 led set-system-color 255 96 0 --brightness 128
 ```
 
-The initial value comes from `[led_ring].system_color` in
-`/etc/satellite1.conf`. A value set with `sat1 led set-system-color` is saved
-to `/var/lib/satellite1/led-ring-color.json` and is restored on later daemon
-starts, overriding that configured initial value.
+Set `[led_ring].system_color` in `/etc/satellite1.conf` to make it
+authoritative on every daemon start. Otherwise, a value set with
+`sat1 led set-system-color`, LVA, or MQTT is saved to
+`/var/lib/satellite1/led-ring-color.json` and restored on later starts.
 
 ## Configuration
 
@@ -198,6 +198,9 @@ unavailable or invalid.
 
 `startup_muted` is applied after the selected volume. It controls whether the
 output starts muted; mute state itself is not restored.
+
+Both DACs are initialized when XMOS becomes available. Line-out is selected
+when its jack is present; otherwise audio uses the speaker.
 
 ```toml
 [line_out]
@@ -255,15 +258,20 @@ fixed step. It selects line-out when a jack is plugged in and speaker otherwise.
 [workflows.volume-buttons]
 enabled = true
 step = 0.05
-led_enabled = true
-led_color = [0, 90, 255]
-led_muted_color = [255, 0, 0]
-led_timeout = 1.5
 ```
 
-When enabled, each volume-button press temporarily displays a 24-pixel volume
-bar. Zero volume displays a red first pixel. The notification suppresses normal
-LED frames until `led_timeout` expires, then restores the latest normal frame.
+Enable volume-change LED feedback separately. It reacts to every output-volume
+change, not only physical button presses:
+
+```toml
+[workflows.volume]
+enabled = true
+color = [0, 90, 255]
+timeout = 1.5
+```
+
+The notification suppresses normal LED frames until `timeout` expires, then
+restores the latest normal frame.
 
 ### Jack Animation
 

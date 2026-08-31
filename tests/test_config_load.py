@@ -5,6 +5,7 @@ import textwrap
 from pathlib import Path
 from typing import ClassVar, Literal
 
+import pytest
 from pydantic import BaseModel, ConfigDict, Field
 
 from satellite1d.config import load_daemon_config
@@ -196,12 +197,16 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
 
         [led_ring]
         enabled = true
+        system_color = [10, 20, 30]
 
         [workflows.volume-buttons]
-        led_enabled = true
-        led_color = [1, 2, 3]
-        led_muted_color = [4, 5, 6]
-        led_timeout = 2.0
+        enabled = true
+
+        [workflows.volume]
+        enabled = true
+        color = [1, 2, 3]
+        muted_color = [4, 5, 6]
+        timeout = 2.0
 
         [workflows.jack-led]
         enabled = true
@@ -217,9 +222,12 @@ def test_daemon_gpio_chip_defaults_and_can_be_overridden(tmp_path: Path):
     config = load_daemon_config(cfg_file)
     assert config.gpio.chip == "/dev/gpiochip4"
     assert config.led_ring.enabled
-    assert config.volume_buttons_workflow.led_color == (1, 2, 3)
-    assert config.volume_buttons_workflow.led_muted_color == (4, 5, 6)
-    assert config.volume_buttons_workflow.led_timeout == 2.0
+    assert config.led_ring.system_color == (10, 20, 30)
+    assert config.volume_buttons_workflow.enabled
+    assert config.volume_workflow.enabled
+    assert config.volume_workflow.color == (1, 2, 3)
+    assert config.volume_workflow.muted_color == (4, 5, 6)
+    assert config.volume_workflow.timeout == 2.0
     assert config.jack_led_workflow.enabled
     assert config.jack_led_workflow.color == (7, 8, 9)
     assert config.jack_led_workflow.frame_interval == 0.05
@@ -234,6 +242,8 @@ def test_audio_volume_restoration_defaults_and_can_be_disabled(tmp_path: Path):
     assert default.speaker.restore_volume_on_startup
     assert not default.line_out.startup_muted
     assert not default.speaker.startup_muted
+    assert default.mute_led_workflow.mic_muted_color is None
+    assert default.mute_led_workflow.speaker_muted_color is None
 
     config_path = tmp_path / "conf.toml"
     write_toml(
@@ -250,3 +260,47 @@ def test_audio_volume_restoration_defaults_and_can_be_disabled(tmp_path: Path):
     config = load_daemon_config(config_path)
     assert not config.line_out.restore_volume_on_startup
     assert not config.speaker.restore_volume_on_startup
+
+
+def test_logging_level_defaults_and_can_be_configured(tmp_path: Path):
+    default = load_daemon_config(tmp_path / "nope.toml")
+    assert default.logging.level == "INFO"
+
+    config_path = tmp_path / "conf.toml"
+    write_toml(
+        config_path,
+        """
+        [logging]
+        level = "DEBUG"
+        """,
+    )
+
+    assert load_daemon_config(config_path).logging.level == "DEBUG"
+
+    write_toml(
+        config_path,
+        """
+        [logging]
+        level = "TRACE"
+        """,
+    )
+
+    with pytest.raises(ValueError):
+        load_daemon_config(config_path)
+
+
+@pytest.mark.parametrize("section", ["line_out", "speaker"])
+def test_dac_configuration_rejects_removed_enabled_setting(
+    tmp_path: Path, section: str
+):
+    config_path = tmp_path / "conf.toml"
+    write_toml(
+        config_path,
+        f"""
+        [{section}]
+        enabled = false
+        """,
+    )
+
+    with pytest.raises(ValueError):
+        load_daemon_config(config_path)

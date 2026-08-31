@@ -20,6 +20,7 @@ from satellite1d.contracts.events import (
     ButtonPressed,
     DaemonEvent,
     EventSubscriber,
+    LedBackgroundFrameChanged,
     MicMuteChanged,
 )
 from satellite1d.contracts.leds import (
@@ -80,6 +81,7 @@ class MqttAdapter:
         device_info: DeviceInfo,
         hostname: Callable[[], str] = socket.gethostname,
         client_factory: Callable[..., MqttConnection] = DEFAULT_CLIENT_FACTORY,
+        update_system_color: bool = True,
     ) -> None:
         self._environment = environment
         self._power = power
@@ -103,6 +105,7 @@ class MqttAdapter:
         if hardware_version := device_info.hardware_version:
             self._device["hw_version"] = hardware_version
         self._client_factory = client_factory
+        self._update_system_color = update_system_color
         self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -406,6 +409,8 @@ class MqttAdapter:
             elif isinstance(event, MicMuteChanged):
                 async with self._microphone_state_lock:
                     await self._publish_microphone_mute_value(client, event.muted)
+            elif isinstance(event, LedBackgroundFrameChanged):
+                await self._publish_led_state(client)
 
     async def _publish_microphone_mute_value(
         self, client: MqttPublisher, muted: bool | None
@@ -422,7 +427,6 @@ class MqttAdapter:
             return
         try:
             await self._apply_led_command(command)
-            await self._publish_led_state(client)
         except Exception:
             log.warning("applying MQTT LED ring command failed", exc_info=True)
 
@@ -435,15 +439,19 @@ class MqttAdapter:
             await led_ring.clear()
             return
         assert color is not None
-        await led_ring.set_system_color(color)
+        if self._update_system_color:
+            await led_ring.set_system_color(color)
         await led_ring.set_background_frame(LedFrame.solid(color))
 
     async def _publish_led_state(self, client: MqttPublisher) -> None:
         if self._led_ring is None:
             return
-        frame = self._led_ring.background_frame
-        payload: dict[str, object] = {"state": "OFF" if not any(frame.pixels) else "ON"}
-        if payload["state"] == "ON" and len(set(frame.pixels)) == 1:
+        led_ring = self._led_ring
+        frame = led_ring.background_frame
+        payload: dict[str, object] = {
+            "state": "ON" if led_ring.background_frame_is_set else "OFF"
+        }
+        if led_ring.background_frame_is_set and len(set(frame.pixels)) == 1:
             color = LedColor(frame.pixels[0])
             payload["color"] = {
                 "r": round(color.rgb[0]),
