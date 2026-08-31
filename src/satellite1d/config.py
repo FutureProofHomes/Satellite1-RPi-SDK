@@ -237,6 +237,7 @@ class LvaConfig(BaseModel):
     url: str = "ws://127.0.0.1:6055"
     reconnect_delay: float = Field(3.0, gt=0.0)
     timer_max_ring_seconds: float = Field(900.0, gt=0.0)
+    register_led_ring: bool = True
 
     @field_validator("url")
     @classmethod

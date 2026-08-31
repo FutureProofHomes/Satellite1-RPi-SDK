@@ -145,6 +145,7 @@ class DaemonRuntime:
                 url=config.lva.url,
                 reconnect_delay=config.lva.reconnect_delay,
                 update_system_color=config.led_ring.system_color is None,
+                register_led_ring=config.lva.register_led_ring,
             )
         if config.mqtt.enabled:
             self.mqtt = MqttAdapter(

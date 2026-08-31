@@ -229,6 +229,37 @@ def test_lva_adapter_works_without_an_led_ring():
     asyncio.run(run())
 
 
+def test_lva_adapter_can_skip_led_ring_registration():
+    async def run() -> None:
+        connected = asyncio.Event()
+        received_commands: asyncio.Queue[dict] = asyncio.Queue()
+
+        async def handler(websocket: ServerConnection) -> None:
+            connected.set()
+            async for message in websocket:
+                received_commands.put_nowait(json.loads(message))
+
+        async with serve(handler, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            adapter = LvaAdapter(
+                EventHub(),
+                Jack(plugged_in=False),
+                Audio(),
+                Audio(),
+                LedRing(),
+                url=f"ws://127.0.0.1:{port}",
+                reconnect_delay=0.01,
+                register_led_ring=False,
+            )
+            await adapter.start()
+            await asyncio.wait_for(connected.wait(), timeout=1)
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(received_commands.get(), timeout=0.05)
+            await adapter.close()
+
+    asyncio.run(run())
+
+
 def test_lva_adapter_translates_lva_facts_without_command_feedback():
     events = EventHub()
     subscriber = events.subscribe()

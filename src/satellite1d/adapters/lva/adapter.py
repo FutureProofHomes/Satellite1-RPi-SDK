@@ -86,6 +86,7 @@ class LvaAdapter:
         url: str = DEFAULT_URL,
         reconnect_delay: float = DEFAULT_RECONNECT_DELAY,
         update_system_color: bool = True,
+        register_led_ring: bool = True,
     ) -> None:
         self._events = events
         self._line_out_jack = line_out_jack
@@ -95,6 +96,7 @@ class LvaAdapter:
         self._url = url
         self._reconnect_delay = reconnect_delay
         self._update_system_color = update_system_color
+        self._register_led_ring = register_led_ring
         self._actions: asyncio.Queue[LvaCommand] = asyncio.Queue(maxsize=32)
         self._pending_mic_command: LvaCommand | None = None
         self._pending_volume_command: LvaCommand | None = None
@@ -210,7 +212,7 @@ class LvaAdapter:
             await asyncio.sleep(self._reconnect_delay)
 
     async def _run_connection(self, websocket: ClientConnection) -> None:
-        if self._led_ring is not None:
+        if self._register_led_ring and self._led_ring is not None:
             await websocket.send(json.dumps(_register_led_ring_light_command()))
         self._transport_active = True
         try:
