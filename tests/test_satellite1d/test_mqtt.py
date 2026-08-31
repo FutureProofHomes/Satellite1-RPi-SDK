@@ -68,6 +68,12 @@ class LedRing:
         self.background_frames: list[LedFrame] = []
         self.cleared = 0
 
+    @property
+    def background_frame_is_set(self) -> bool:
+        return any(
+            channel for pixel in self.background_frame.pixels for channel in pixel
+        )
+
     async def set_system_color(self, color: LedColor) -> None:
         self.system_color = color
 
@@ -445,6 +451,14 @@ def test_mqtt_adapter_publishes_led_state_from_shared_background_frame():
         assert client.published[-1] == (
             "satellite1/kitchen-satellite/led_ring/state",
             '{"brightness":64,"color":{"b":0,"g":255,"r":0},"state":"ON"}',
+            True,
+        )
+
+        await led_ring.clear()
+        await adapter._publish_led_state(client)
+        assert client.published[-1] == (
+            "satellite1/kitchen-satellite/led_ring/state",
+            '{"state":"OFF"}',
             True,
         )
 

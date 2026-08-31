@@ -111,6 +111,10 @@ class LedRingService:
     def background_frame(self) -> LedFrame:
         return self._normal_frame
 
+    @property
+    def background_frame_is_set(self) -> bool:
+        return any(channel for pixel in self._normal_frame.pixels for channel in pixel)
+
     async def set_system_color(self, color: LedColor) -> None:
         if not self.available:
             raise LedRingUnavailableError("LED ring renderer is unavailable")

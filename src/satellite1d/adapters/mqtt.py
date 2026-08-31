@@ -444,9 +444,12 @@ class MqttAdapter:
     async def _publish_led_state(self, client: MqttPublisher) -> None:
         if self._led_ring is None:
             return
-        frame = self._led_ring.background_frame
-        payload: dict[str, object] = {"state": "OFF" if not any(frame.pixels) else "ON"}
-        if payload["state"] == "ON" and len(set(frame.pixels)) == 1:
+        led_ring = self._led_ring
+        frame = led_ring.background_frame
+        payload: dict[str, object] = {
+            "state": "ON" if led_ring.background_frame_is_set else "OFF"
+        }
+        if led_ring.background_frame_is_set and len(set(frame.pixels)) == 1:
             color = LedColor(frame.pixels[0])
             payload["color"] = {
                 "r": round(color.rgb[0]),
