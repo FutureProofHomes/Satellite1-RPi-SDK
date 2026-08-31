@@ -319,7 +319,9 @@ class DaemonConfig:
     jack_led_workflow: JackLedWorkflowConfig
     mute_led_workflow: MuteLedWorkflowConfig
     led_ring: LedRingConfig
-    volume_workflow: VolumeWorkflowConfig = field(default_factory=VolumeWorkflowConfig)
+    volume_workflow: VolumeWorkflowConfig = field(
+        default_factory=lambda: VolumeWorkflowConfig(timeout=1.5)
+    )
     lva: LvaConfig = field(
         default_factory=lambda: LvaConfig(
             reconnect_delay=3.0,
