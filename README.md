@@ -33,6 +33,10 @@ This creates:
 
 No reboot required.
 
+Raspberry Pi 5 and other ARM boards that copy the Raspberry Pi 40-pin
+header are covered in [docs/porting-arm-hosts.md](docs/porting-arm-hosts.md).
+A board that does not use that pinout cannot run this HAT without a wiring jig.
+
 The CLI connects through a group-owned daemon socket. Add an interactive user
 to `satellite1`, then log out and back in before using `sat1`:
 
