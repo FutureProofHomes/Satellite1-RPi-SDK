@@ -1,0 +1,4 @@
+[submodule "third_party/Satellite1-XMOS"]
+	path = third_party/Satellite1-XMOS
+	url = git@github.com:qnlbnsl/Satellite1-XMOS.git
+	branch = develop
