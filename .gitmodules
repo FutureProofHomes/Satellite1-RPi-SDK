@@ -2,3 +2,11 @@
 	path = third_party/Satellite1-XMOS
 	url = git@github.com:qnlbnsl/Satellite1-XMOS.git
 	branch = develop
+[submodule "third_party/Satellite1-RPi"]
+	path = third_party/Satellite1-RPi
+	url = git@github.com:qnlbnsl/Satellite1-RPi.git
+	branch = develop
+[submodule "third_party/RPi-Kernel-Fusb302"]
+	path = third_party/RPi-Kernel-Fusb302
+	url = git@github.com:qnlbnsl/RPi-Kernel-Fusb302.git
+	branch = trixie
