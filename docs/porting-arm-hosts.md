@@ -5,7 +5,20 @@ The Satellite1 HAT is wired for a **Raspberry Pi 40-pin header** (Pi Zero / Pi 3
 1. Raspberry Pi 5 (same pinout, different SoC I/O chip).
 2. Any other ARM board that **copies that pinout** (Orange Pi Zero 2W, Radxa ZERO 3W, and similar).
 
-Official software today targets Raspberry Pi OS arm64 on **Pi Zero 2 W**. This Python SDK talks to Linux userspace devices. It does not drive I2S PCM; that is ALSA plus a device-tree overlay in `satellite1-rpi-setup` ([FutureProofHomes/Satellite1-RPi](https://github.com/FutureProofHomes/Satellite1-RPi)).
+Official software today targets Raspberry Pi OS arm64 on **Pi Zero 2 W**. This Python SDK talks to Linux userspace devices. It does not drive I2S PCM; that is ALSA plus a device-tree overlay in `satellite1-rpi-setup`.
+
+Board-support trees live in this repo as submodules (your forks):
+
+| Path | Tracks | What you edit for other boards |
+| --- | --- | --- |
+| `third_party/Satellite1-RPi` | `develop` | Overlays, ALSA, `config.txt` (`sys-packages/satellite1-rpi-setup`) |
+| `third_party/RPi-Kernel-Fusb302` | `trixie` | Pi FUSB302 kernel packaging. **v8 only — do not install on a Pi 5** |
+| `third_party/Satellite1-XMOS` | `develop` | Firmware. Same on every Pi-pinout host |
+
+Clone with `git clone --recurse-submodules`. Overlay sources:
+
+- `third_party/Satellite1-RPi/sys-packages/satellite1-rpi-setup/dt-overlays/satellite1-i2s.dts`
+- `third_party/Satellite1-RPi/sys-packages/satellite1-rpi-setup/dt-overlays/fusb302b.dts`
 
 ## Hard rule: the 40-pin pinout
 
@@ -61,7 +74,20 @@ A port is mostly **device tree + kernel config**. The daemon already uses portab
 
 ## Raspberry Pi 5
 
-Same pinout. The 40-pin header is on **RP1**, not BCM2711. Three changes.
+Same pinout. The 40-pin header is on **RP1**, not BCM2711. Three changes. GPIO auto-detect and the I2S overlay retarget are **not implemented yet**; do them on the Pi 5 using the steps below.
+
+### First boot (take this tree to a Pi 5)
+
+1. Flash **Raspberry Pi OS 64-bit** for Pi 5 (Bookworm or Trixie). That already installs `kernel_2712.img`. Use the official 27 W / 5 A PSU on the **Pi USB-C**. Do not power the Pi from the HAT 5 V pins.
+2. Clone this SDK with submodules. Do **not** `dpkg -i linux-image-*-fusb302-*-rpi-v8`. That package is `kernel8.img` and will not boot a Pi 5. Skip the stock `satellite1-rpi-setup` postinst until the I2S overlay is patched — it enables the right `dtparam`s but installs `satellite1-i2s` still aimed at `&i2s`.
+3. In `/boot/firmware/config.txt`: `dtparam=i2c_arm=on`, `dtparam=spi=on`. Leave `dtparam=i2s=on` until the consumer overlay is in place, or expect a silent/noisy card.
+4. `gpiodetect` — use the chip labeled **`pinctrl-rp1`**, not a hardcoded `gpiochip4`. Put that path in `[gpio] chip` in `/etc/satellite1.conf`. Offsets stay 5 and 7.
+5. `i2cdetect -y 1` should show `0x22`, `0x29`, `0x3F`, `0x4D` with the HAT on.
+6. SPI: `sat1 xmos read-firmware` (mode 3, 8 MHz, `/dev/spidev0.0`). This path should work without an overlay change.
+7. PD: `modinfo fusb302` on the stock **2712** kernel. If the module is missing, `sat1 pd` will not work until stock ≥ 6.18.42 or a 2712 FUSB302 package exists. `fusb302b.dts` itself is fine on RP1.
+8. I2S: edit `satellite1-i2s.dts` in the Satellite1-RPi submodule — change every `&i2s` (both `sound-dai` lines and `fragment@2`) to `&i2s_clk_consumer`. Compile with `dtc`, copy the `.dtbo` to `/boot/firmware/overlays/`, `dtoverlay=satellite1-i2s`, reboot. Then `arecord` / `aplay` on `hw:Satellite1` at 48 kHz `S32_LE`.
+
+What should work on day 1 after step 4: I2C DACs, LTR303, XMOS SPI (LEDs, firmware version), GPIO reset/button. What will not: capture/playback, and maybe PD.
 
 ### 1. GPIO chip (this SDK)
 
@@ -69,14 +95,14 @@ Default `[gpio] chip = /dev/gpiochip0` is correct on Zero 2 / Pi 4. On Pi 5 the 
 
 Hardcoding `gpiochip4` will break again. Resolve the chip by **driver name** `pinctrl-rp1` (and `pinctrl-bcm2711` on Pi 4 / Zero 2). BCM offsets **5** and **7** stay.
 
-Until that lands, set in `/etc/satellite1.conf`:
+Until auto-detect lands, set in `/etc/satellite1.conf` after `gpiodetect`:
 
 ```toml
 [gpio]
-chip = "/dev/gpiochipN"   # the pinctrl-rp1 chip; check /sys/class/gpio or gpioinfo
+chip = "/dev/gpiochipN"   # the pinctrl-rp1 chip
 ```
 
-### 2. I2S overlay (`satellite1-rpi-setup`, not this repo)
+### 2. I2S overlay (`third_party/Satellite1-RPi`)
 
 `satellite1-i2s.dts` already lists `brcm,bcm2712` and already makes the Pi the I2S slave. It still binds the CPU DAI to `&i2s`.
 

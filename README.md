@@ -220,14 +220,19 @@ restore_volume_on_startup = true
 
 ### GPIO Controller
 
-The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default.
-If the Raspberry Pi header GPIO controller has a different path on the target
-kernel, configure it explicitly:
+The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default
+(Pi Zero 2 W / Pi 4). On a Pi 5 the header controller is `pinctrl-rp1`; its
+`/dev/gpiochipN` index is not stable across kernels. Do **not** assume
+`gpiochip4`. Run `gpiodetect`, pick the chip labeled `pinctrl-rp1`, and set:
 
 ```toml
 [gpio]
-chip = "/dev/gpiochip4"
+chip = "/dev/gpiochipN"
 ```
+
+BCM offsets 5 (reset) and 7 (action) stay the same. See
+[docs/porting-arm-hosts.md](docs/porting-arm-hosts.md) before installing any
+FUSB302 kernel package on a Pi 5.
 
 ### Buttons
 
