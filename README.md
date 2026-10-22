@@ -33,10 +33,6 @@ This creates:
 
 No reboot required.
 
-Raspberry Pi 5 and other ARM boards that copy the Raspberry Pi 40-pin
-header are covered in [docs/porting-arm-hosts.md](docs/porting-arm-hosts.md).
-A board that does not use that pinout cannot run this HAT without a wiring jig.
-
 The CLI connects through a group-owned daemon socket. Add an interactive user
 to `satellite1`, then log out and back in before using `sat1`:
 
@@ -220,19 +216,14 @@ restore_volume_on_startup = true
 
 ### GPIO Controller
 
-The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default
-(Pi Zero 2 W / Pi 4). On a Pi 5 the header controller is `pinctrl-rp1`; its
-`/dev/gpiochipN` index is not stable across kernels. Do **not** assume
-`gpiochip4`. Run `gpiodetect`, pick the chip labeled `pinctrl-rp1`, and set:
+The direct XMOS reset and action-button lines use `/dev/gpiochip0` by default.
+If the Raspberry Pi header GPIO controller has a different path on the target
+kernel, configure it explicitly:
 
 ```toml
 [gpio]
-chip = "/dev/gpiochipN"
+chip = "/dev/gpiochip4"
 ```
-
-BCM offsets 5 (reset) and 7 (action) stay the same. See
-[docs/porting-arm-hosts.md](docs/porting-arm-hosts.md) before installing any
-FUSB302 kernel package on a Pi 5.
 
 ### Buttons
 
